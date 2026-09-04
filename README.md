@@ -1,6 +1,8 @@
+<img width="400" alt="radis-icon-lockup-dark_1" src="https://github.com/user-attachments/assets/28e457e9-cfea-4d92-9294-9c70db740023" />
+
 # DIS Radio — IEEE 1278 Radio Communications Tool
 
-A Flutter desktop application for Windows and Linux implementing the IEEE 1278 DIS (Distributed Interactive Simulation) radio communications protocol.
+A multi-platform desktop application written using Flutter for Windows and Linux implementing the IEEE 1278 DIS (Distributed Interactive Simulation) radio communications protocol.
 
 ## Features
 
