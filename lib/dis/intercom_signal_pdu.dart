@@ -14,6 +14,7 @@ class IntercomSignalPdu {
   final int samples;
   final Uint8List data;
   final int exerciseId;
+  final int protocolVersion;
 
   const IntercomSignalPdu({
     required this.entityId,
@@ -25,6 +26,7 @@ class IntercomSignalPdu {
     required this.data,
     required this.exerciseId,
     this.tdlType = DisConstants.tdlTypeOther,
+    this.protocolVersion = DisConstants.protocolVersion,
   });
 
   int get encodingClass => (encodingScheme >> 14) & 0x3;
@@ -40,6 +42,7 @@ class IntercomSignalPdu {
 
     final headerBytes = PduHeader(
       exerciseId: exerciseId,
+      protocolVersion: protocolVersion,
       pduType: DisConstants.pduTypeIntercomSignal,
       protocolFamily: DisConstants.protocolFamilyRadioCommunications,
       length: totalSize,

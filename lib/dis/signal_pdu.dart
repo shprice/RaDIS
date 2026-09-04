@@ -14,6 +14,7 @@ class SignalPdu {
   final int samples;
   final Uint8List data;
   final int exerciseId;
+  final int protocolVersion;
 
   const SignalPdu({
     required this.entityId,
@@ -25,6 +26,7 @@ class SignalPdu {
     required this.data,
     required this.exerciseId,
     this.tdlType = DisConstants.tdlTypeOther,
+    this.protocolVersion = DisConstants.protocolVersion,
   });
 
   static int buildEncodingScheme(int encodingClass, int encodingType) {
@@ -47,6 +49,7 @@ class SignalPdu {
 
     final headerBytes = PduHeader(
       exerciseId: exerciseId,
+      protocolVersion: protocolVersion,
       pduType: DisConstants.pduTypeSignal,
       protocolFamily: DisConstants.protocolFamilyRadioCommunications,
       length: totalSize,

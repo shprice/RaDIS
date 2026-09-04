@@ -2,12 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/radio_config.dart';
-import '../models/ptt_binding.dart';
 import '../providers/radio_provider.dart';
 import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
-import '../dis/entity_id.dart';
-import '../dis/constants.dart';
 import '../theme.dart';
 import '../widgets/frequency_display.dart';
 
@@ -22,7 +19,6 @@ class RadioConfigScreen extends StatefulWidget {
 
 class _RadioConfigScreenState extends State<RadioConfigScreen> {
   late RadioConfig _radio;
-  bool _capturingPtt = false;
 
   @override
   void initState() {
@@ -37,6 +33,7 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
     final audioProvider = context.watch<AudioProvider>();
     final radioProvider = context.read<RadioProvider>();
     final settingsProvider = context.watch<SettingsProvider>();
+    final allBindings = settingsProvider.settings.keyBindings;
 
     return Scaffold(
       appBar: AppBar(
@@ -78,7 +75,6 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: FrequencyDisplay(
                 frequency: _radio.frequency,
-                interactive: true,
                 onChanged: (f) => _update(_radio.copyWith(frequency: f)),
               ),
             ),
@@ -234,82 +230,87 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
               display: '${(_radio.squelch * 100).round()}%',
               onChanged: (v) => _update(_radio.copyWith(squelch: v)),
             ),
+            _LabeledSlider(
+              label: 'Sidetone',
+              value: _radio.sidetoneVolume,
+              min: 0,
+              max: 1,
+              display: '${(_radio.sidetoneVolume * 100).round()}%',
+              onChanged: (v) => _update(_radio.copyWith(sidetoneVolume: v)),
+            ),
+            _LabeledSlider(
+              label: 'Pan',
+              value: _radio.outputPan,
+              min: -1,
+              max: 1,
+              display: _radio.outputPan.abs() < 0.01
+                  ? 'C'
+                  : _radio.outputPan < 0
+                      ? 'L${(-_radio.outputPan * 100).round()}'
+                      : 'R${(_radio.outputPan * 100).round()}',
+              onChanged: (v) => _update(_radio.copyWith(outputPan: v)),
+            ),
           ]),
 
           _Section(title: 'PUSH-TO-TALK', children: [
-            ListTile(
-              title: const Text('PTT Key Binding',
-                  style: TextStyle(color: AppColors.text)),
-              subtitle: Text(
-                _radio.pttBinding?.description ?? 'Not assigned',
-                style: TextStyle(
-                  color: _radio.pttBinding != null
-                      ? AppColors.primaryGreen
-                      : AppColors.textMuted,
-                  fontFamily: 'Courier New',
-                ),
+            const Padding(
+              padding: EdgeInsets.only(bottom: 8),
+              child: Text(
+                'PTT Key Bindings',
+                style: TextStyle(color: AppColors.text, fontSize: 14),
               ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (_capturingPtt)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.amber,
-                      ),
-                    ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: _capturingPtt ? null : _capturePtt,
-                    child: Text(_capturingPtt ? 'Press Key...' : 'Set Key'),
+            ),
+            if (allBindings.isEmpty)
+              const Text(
+                'No key bindings defined. Add bindings in Settings.',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+              )
+            else
+              ...allBindings.map((binding) {
+                final isSelected = _radio.pttBindingIds.contains(binding.id);
+                return CheckboxListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    binding.displayLabel,
+                    style: const TextStyle(color: AppColors.text, fontSize: 13),
                   ),
-                  if (_radio.pttBinding != null)
-                    IconButton(
-                      icon: const Icon(Icons.clear, color: AppColors.textMuted),
-                      onPressed: () => _update(_radio.copyWith()),
-                    ),
-                ],
-              ),
-            ),
-            SwitchListTile(
-              title: const Text('VOX Enabled',
-                  style: TextStyle(color: AppColors.text)),
-              subtitle:
-                  const Text('Voice activated transmit', style: TextStyle(color: AppColors.textMuted)),
-              value: _radio.voxEnabled,
-              activeColor: AppColors.primaryGreen,
-              onChanged: (v) => _update(_radio.copyWith(voxEnabled: v)),
-            ),
-            if (_radio.voxEnabled) ...[
-              _LabeledSlider(
-                label: 'VOX Threshold',
-                value: _radio.voxThreshold,
-                min: 0.01,
-                max: 0.5,
-                display: (_radio.voxThreshold * 100).toStringAsFixed(1),
-                onChanged: (v) => _update(_radio.copyWith(voxThreshold: v)),
-              ),
-              _Field(
-                label: 'VOX Hang Time (ms)',
-                child: TextFormField(
-                  initialValue: _radio.voxHangTime.inMilliseconds.toString(),
-                  style: _inputStyle,
-                  decoration: _inputDec('500'),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  onChanged: (v) {
-                    final ms = int.tryParse(v);
-                    if (ms != null) {
-                      _update(_radio.copyWith(
-                          voxHangTime: Duration(milliseconds: ms)));
+                  subtitle: Text(
+                    binding.fullKeyLabel,
+                    style: const TextStyle(
+                        color: AppColors.textMuted, fontSize: 11),
+                  ),
+                  value: isSelected,
+                  activeColor: AppColors.primaryGreen,
+                  onChanged: (checked) {
+                    final ids = List<String>.from(_radio.pttBindingIds);
+                    if (checked == true) {
+                      ids.add(binding.id);
+                    } else {
+                      ids.remove(binding.id);
                     }
+                    _update(_radio.copyWith(pttBindingIds: ids));
                   },
-                ),
+                );
+              }),
+            const SizedBox(height: 8),
+            _Field(
+              label: 'VOX Hang Time (ms)',
+              child: TextFormField(
+                initialValue: _radio.voxHangTime.inMilliseconds.toString(),
+                style: _inputStyle,
+                decoration: _inputDec('500'),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (v) {
+                  final ms = int.tryParse(v);
+                  if (ms != null) {
+                    _update(_radio.copyWith(
+                        voxHangTime: Duration(milliseconds: ms)));
+                  }
+                },
               ),
-            ],
+            ),
           ]),
 
           _Section(title: 'NET PLAN ASSIGNMENT', children: [
@@ -471,32 +472,6 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
     );
   }
 
-  void _capturePtt() {
-    setState(() => _capturingPtt = true);
-    HardwareKeyboard.instance.addHandler(_onKey);
-  }
-
-  bool _onKey(KeyEvent event) {
-    if (event is KeyDownEvent && _capturingPtt) {
-      HardwareKeyboard.instance.removeHandler(_onKey);
-      final keyLabel = event.logicalKey.keyLabel;
-      final keyId = event.physicalKey.usbHidUsage;
-      setState(() {
-        _capturingPtt = false;
-        _radio = _radio.copyWith(
-          pttBinding: PttBinding(
-            triggerType: PttTriggerType.keyboardKey,
-            keyCode: keyLabel,
-            physicalKeyCode: keyId,
-            description: keyLabel.isEmpty ? 'Key 0x${keyId.toRadixString(16)}' : keyLabel,
-          ),
-        );
-      });
-      return true;
-    }
-    return false;
-  }
-
   InputDecoration _inputDec(String hint) => InputDecoration(
         hintText: hint,
         isDense: true,
@@ -504,7 +479,7 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
       );
 
   TextStyle get _inputStyle =>
-      const TextStyle(color: AppColors.text, fontFamily: 'Courier New', fontSize: 13);
+      const TextStyle(color: AppColors.text, fontSize: 13);
 }
 
 class _Section extends StatelessWidget {
@@ -523,7 +498,6 @@ class _Section extends StatelessWidget {
           child: Text(
             title,
             style: const TextStyle(
-              fontFamily: 'Courier New',
               fontSize: 11,
               letterSpacing: 3,
               color: AppColors.textMuted,
@@ -612,7 +586,6 @@ class _LabeledSlider extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 12,
                 color: AppColors.primaryGreen,
-                fontFamily: 'Courier New',
               ),
             ),
           ),

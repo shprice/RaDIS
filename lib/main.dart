@@ -7,7 +7,7 @@ void main() async {
 
   await windowManager.ensureInitialized();
   await windowManager.setMinimumSize(const Size(1024, 768));
-  await windowManager.setTitle('DIS Radio — IEEE 1278');
+  await windowManager.setTitle('RaDIS');
   await windowManager.center();
 
   runApp(const DisRadioApp());

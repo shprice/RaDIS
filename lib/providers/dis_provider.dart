@@ -15,6 +15,7 @@ import '../audio/vox_detector.dart';
 import '../models/radio_config.dart';
 import '../models/intercom_config.dart';
 import '../models/app_settings.dart';
+import '../models/trigger_mode.dart';
 
 class RadioRxState {
   final bool rxActive;
@@ -48,6 +49,7 @@ class DisProvider extends ChangeNotifier {
   final Map<String, RadioRxState> _rxStates = {};
   final Map<String, bool> _txActive = {};
   final Map<String, VoxDetector> _voxDetectors = {};
+  final Set<String> _autoTxIds = {};
   final Map<String, Timer> _rxTimeouts = {};
   // Stateful CVSD decoders keyed by "site_app_entity_radioId" of the sender.
   final Map<String, CvsdDecoder> _cvsdDecoders = {};
@@ -60,6 +62,8 @@ class DisProvider extends ChangeNotifier {
   List<IntercomConfig> _intercoms = [];
   Timer? _heartbeatTimer;
   StreamSubscription? _rxSubscription;
+  // Tracks which intercoms have had their Initialize PDU sent this session.
+  final Set<String> _intercomInitialized = {};
 
   int _packetsRx = 0;
   int _packetsTx = 0;
@@ -71,6 +75,12 @@ class DisProvider extends ChangeNotifier {
   Map<String, RadioRxState> get rxStates => Map.unmodifiable(_rxStates);
 
   bool isTxActive(String radioId) => _txActive[radioId] ?? false;
+
+  int get _protocolVersion =>
+      _settings?.disProtocolVersion ?? DisConstants.protocolVersionDis6;
+  bool get _supportsIntercom =>
+      _protocolVersion >= DisConstants.protocolVersionDis6;
+  bool get supportsIntercom => _supportsIntercom;
 
   Future<void> start(
     AppSettings settings,
@@ -101,6 +111,7 @@ class DisProvider extends ChangeNotifier {
       _heartbeatTimer =
           Timer.periodic(const Duration(seconds: 5), (_) => _sendHeartbeats());
       _sendHeartbeats();
+      _applyAutoTransmit();
     } catch (e) {
       _connected = false;
       print('DisProvider: failed to start: $e');
@@ -121,8 +132,13 @@ class DisProvider extends ChangeNotifier {
       vox.dispose();
     }
     _voxDetectors.clear();
+    _autoTxIds.clear();
     _cvsdDecoders.clear();
     _cvsdEncoders.clear();
+    // Send Disconnect for any initialized intercoms before closing the socket.
+    for (final intercom in _intercoms) {
+      _sendIntercomDisconnect(intercom);
+    }
     await _network.stop();
     _connected = false;
     notifyListeners();
@@ -131,6 +147,15 @@ class DisProvider extends ChangeNotifier {
   void updateRadios(List<RadioConfig> radios, List<IntercomConfig> intercoms) {
     _radios = radios;
     _intercoms = intercoms;
+    _applyAutoTransmit();
+  }
+
+  /// Updates settings without reconnecting. Call when only non-network settings
+  /// change (protocol version, exercise ID, audio defaults, key bindings…).
+  /// The caller is responsible for calling [start] when network parameters change.
+  void applySettings(AppSettings settings) {
+    _settings = settings;
+    notifyListeners();
   }
 
   Future<void> startTransmit(String radioId) async {
@@ -140,50 +165,334 @@ class DisProvider extends ChangeNotifier {
 
     _txActive[radioId] = true;
     notifyListeners();
-
-    // Send transmitter PDU with ON_TX state
     _sendTransmitterPdu(radio, DisConstants.transmitterStateOnTransmitting);
 
-    // Start audio capture
-    await AudioManager.instance.startCapture(
-      radioId,
-      radio.inputDeviceId,
-      _settings?.defaultSampleRate ?? DisConstants.sampleRate8kHz,
-      (pcmData) => _onAudioCaptured(radioId, pcmData, radio),
-    );
+    // Pre-capture already running — no recorder startup needed.
+    if (_autoTxIds.contains(radioId)) return;
+
+    try {
+      await AudioManager.instance.startCapture(
+        radioId,
+        radio.inputDeviceId,
+        _settings?.defaultSampleRate ?? DisConstants.sampleRate8kHz,
+        (pcmData) => _onAudioCaptured(radioId, pcmData, radio),
+      );
+    } catch (e) {
+      _txActive[radioId] = false;
+      _sendTransmitterPdu(radio, DisConstants.transmitterStateOnNotTransmitting);
+      notifyListeners();
+    }
   }
 
   Future<void> stopTransmit(String radioId) async {
     if (_txActive[radioId] != true) return;
     _txActive[radioId] = false;
 
-    await AudioManager.instance.stopCapture(radioId);
-
     final radio = _findRadio(radioId);
     if (radio != null) {
       _sendTransmitterPdu(radio, DisConstants.transmitterStateOnNotTransmitting);
     }
     notifyListeners();
+
+    // Keep capture running if pre-capture is active — avoids recorder startup
+    // latency on the next PTT press.
+    if (!_autoTxIds.contains(radioId)) {
+      await AudioManager.instance.stopCapture(radioId);
+    }
+  }
+
+  IntercomConfig? _findIntercom(String id) {
+    try {
+      return _intercoms.firstWhere((i) => i.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> startIntercomTransmit(String intercomId) async {
+    if (_txActive[intercomId] == true) return;
+    final intercom = _findIntercom(intercomId);
+    if (intercom == null || !intercom.enabled) return;
+
+    _txActive[intercomId] = true;
+    notifyListeners();
+    _sendIntercomControlPdu(intercom, transmitting: true);
+
+    if (_autoTxIds.contains(intercomId)) return;
+
+    try {
+      await AudioManager.instance.startCapture(
+        intercomId,
+        intercom.inputDeviceId,
+        intercom.sampleRate,
+        (pcm) => _onIntercomAudioCaptured(intercomId, pcm, intercom),
+      );
+    } catch (e) {
+      _txActive[intercomId] = false;
+      _sendIntercomControlPdu(intercom, transmitting: false);
+      notifyListeners();
+    }
+  }
+
+  Future<void> stopIntercomTransmit(String intercomId) async {
+    if (_txActive[intercomId] != true) return;
+    _txActive[intercomId] = false;
+
+    final intercom = _findIntercom(intercomId);
+    if (intercom != null) {
+      _sendIntercomControlPdu(intercom, transmitting: false);
+    }
+    notifyListeners();
+
+    if (!_autoTxIds.contains(intercomId)) {
+      await AudioManager.instance.stopCapture(intercomId);
+    }
+  }
+
+  void _applyAutoTransmit() {
+    // Stop pre-capture for IDs that are disabled or no longer exist.
+    for (final id in List.of(_autoTxIds)) {
+      final radio = _findRadio(id);
+      final ic = _findIntercom(id);
+      final shouldStop =
+          (radio != null && !radio.enabled) ||
+          (ic != null && !ic.enabled) ||
+          (radio == null && ic == null);
+      if (shouldStop) {
+        if (_txActive[id] == true) {
+          _txActive[id] = false;
+          if (radio != null) {
+            _sendTransmitterPdu(radio, DisConstants.transmitterStateOnNotTransmitting);
+          } else if (ic != null) {
+            _sendIntercomControlPdu(ic, transmitting: false);
+          }
+        }
+        AudioManager.instance.stopCapture(id);
+        _voxDetectors.remove(id)?.dispose();
+        _autoTxIds.remove(id);
+        notifyListeners();
+      } else {
+        // Dispose stale VoxDetector when mode switches away from VOX.
+        if (radio != null && radio.triggerMode != TriggerMode.vox) {
+          _voxDetectors.remove(id)?.dispose();
+        } else if (ic != null && ic.triggerMode != TriggerMode.vox) {
+          _voxDetectors.remove(id)?.dispose();
+        }
+      }
+    }
+
+    // Pre-start capture for all enabled radios/intercoms so PTT has zero startup
+    // latency. The audio callback gates forwarding on _txActive; VOX uses its own
+    // detector. Capture stays open until the radio is disabled or removed.
+    for (final radio in _radios) {
+      if (radio.enabled && !_autoTxIds.contains(radio.id)) {
+        _startPreCapture(radio);
+      }
+    }
+    for (final ic in _intercoms) {
+      if (ic.enabled && !_autoTxIds.contains(ic.id)) {
+        _startIntercomPreCapture(ic);
+      }
+    }
+  }
+
+  Future<void> _startPreCapture(RadioConfig radio) async {
+    _autoTxIds.add(radio.id);
+    try {
+      await AudioManager.instance.startCapture(
+        radio.id,
+        radio.inputDeviceId,
+        _settings?.defaultSampleRate ?? DisConstants.sampleRate8kHz,
+        (pcmData) => _onAudioCaptured(radio.id, pcmData, radio),
+      );
+    } catch (e) {
+      _autoTxIds.remove(radio.id);
+    }
+  }
+
+  Future<void> _startIntercomPreCapture(IntercomConfig intercom) async {
+    _autoTxIds.add(intercom.id);
+    try {
+      await AudioManager.instance.startCapture(
+        intercom.id,
+        intercom.inputDeviceId,
+        intercom.sampleRate,
+        (pcm) => _onIntercomAudioCaptured(intercom.id, pcm, intercom),
+      );
+    } catch (e) {
+      _autoTxIds.remove(intercom.id);
+    }
+  }
+
+  void _onIntercomAudioCaptured(
+      String intercomId, Uint8List pcmData, IntercomConfig intercom) {
+    if (!_supportsIntercom) return;
+
+    if (intercom.voxEnabled) {
+      // VOX owns TX state: drive transitions from detector output.
+      final vox = _voxDetectors.putIfAbsent(
+        intercomId,
+        () => VoxDetector(
+          threshold: intercom.voxThreshold,
+          hangTime: intercom.voxHangTime,
+        ),
+      )
+        ..threshold = intercom.voxThreshold
+        ..hangTime = intercom.voxHangTime;
+      final shouldTx = vox.processAudio(pcmData);
+      final wasTx = _txActive[intercomId] == true;
+      if (shouldTx != wasTx) {
+        _txActive[intercomId] = shouldTx;
+        _sendIntercomControlPdu(intercom, transmitting: shouldTx);
+        notifyListeners();
+      }
+      if (!shouldTx) return;
+    } else {
+      if (_txActive[intercomId] != true) return;
+    }
+
+    final gained = _applyGain(pcmData, intercom.inputGain);
+
+    if (intercom.sidetoneVolume > 0) {
+      final st = _applyGain(gained, intercom.sidetoneVolume);
+      AudioManager.instance.playAudioImmediate(
+        st,
+        intercom.sampleRate,
+        pan: intercom.outputPan,
+      );
+    }
+
+    final int encodingType = intercom.encodingType;
+    final Uint8List encoded;
+    final int sampleCount;
+
+    if (encodingType == DisConstants.encodingAlaw) {
+      final pcmSamples = G711Codec.bytesToInt16(gained);
+      encoded = G711Codec.encodeAlaw(pcmSamples);
+      sampleCount = encoded.length;
+    } else if (encodingType == DisConstants.encodingLinear16) {
+      encoded = _swapBytes16(gained);
+      sampleCount = encoded.length ~/ 2;
+    } else if (encodingType == DisConstants.encodingCVSD) {
+      final pcmSamples = G711Codec.bytesToInt16(gained);
+      final encoder = _cvsdEncoders.putIfAbsent(intercomId, CvsdEncoder.new);
+      encoded = encoder.encode(pcmSamples);
+      sampleCount = pcmSamples.length;
+    } else {
+      // µ-law (default)
+      final pcmSamples = G711Codec.bytesToInt16(gained);
+      encoded = G711Codec.encodeMulaw(pcmSamples);
+      sampleCount = encoded.length;
+    }
+
+    final pdu = IntercomSignalPdu(
+      entityId: intercom.entityId,
+      communicationsDeviceId: intercom.communicationsDeviceId,
+      encodingScheme: SignalPdu.buildEncodingScheme(
+          DisConstants.encodingClassEncodedAudio, encodingType),
+      sampleRate: intercom.sampleRate,
+      dataLengthBits: encoded.length * 8,
+      samples: sampleCount,
+      data: encoded,
+      exerciseId: _settings?.exerciseId ?? 1,
+      protocolVersion: _protocolVersion,
+    );
+    _network.sendIntercomSignal(pdu);
+    _packetsTx++;
+  }
+
+  void _sendIntercomControlPdu(IntercomConfig intercom,
+      {required bool transmitting}) {
+    if (!_supportsIntercom) return;
+
+    final bool isFirst = !_intercomInitialized.contains(intercom.id);
+    if (isFirst) _intercomInitialized.add(intercom.id);
+
+    final pdu = IntercomControlPdu(
+      controlType: DisConstants.intercomControlStatus,
+      communicationsChannelType: intercom.channelType,
+      sourceEntityId: intercom.entityId,
+      sourceCommunicationsDeviceId: intercom.communicationsDeviceId,
+      sourceLineId: intercom.stationName,
+      masterEntityId: intercom.entityId,
+      masterCommunicationsDeviceId: intercom.communicationsDeviceId,
+      transmitLineState: transmitting
+          ? DisConstants.intercomTransmitLineStateTransmitting
+          : DisConstants.intercomTransmitLineStateIdle,
+      command: isFirst
+          ? DisConstants.intercomCommandInitialize
+          : DisConstants.intercomCommandChangeState,
+      exerciseId: _settings?.exerciseId ?? 1,
+      protocolVersion: _protocolVersion,
+    );
+    _network.sendIntercomControl(pdu);
+    _packetsTx++;
+  }
+
+  void _sendIntercomDisconnect(IntercomConfig intercom) {
+    if (!_supportsIntercom) return;
+    if (!_intercomInitialized.contains(intercom.id)) return;
+    _intercomInitialized.remove(intercom.id);
+
+    final pdu = IntercomControlPdu(
+      controlType: DisConstants.intercomControlStatus,
+      communicationsChannelType: intercom.channelType,
+      sourceEntityId: intercom.entityId,
+      sourceCommunicationsDeviceId: intercom.communicationsDeviceId,
+      sourceLineId: intercom.stationName,
+      masterEntityId: intercom.entityId,
+      masterCommunicationsDeviceId: intercom.communicationsDeviceId,
+      transmitLineState: DisConstants.intercomTransmitLineStateIdle,
+      command: DisConstants.intercomCommandDisconnect,
+      exerciseId: _settings?.exerciseId ?? 1,
+      protocolVersion: _protocolVersion,
+    );
+    _network.sendIntercomControl(pdu);
+    _packetsTx++;
   }
 
   void _onAudioCaptured(
       String radioId, Uint8List pcmData, RadioConfig radio) {
-    if (_txActive[radioId] != true) return;
-
-    // Apply VOX check if enabled
     if (radio.voxEnabled) {
+      // VOX owns TX state: drive transitions from detector output.
       final vox = _voxDetectors.putIfAbsent(
         radioId,
         () => VoxDetector(
           threshold: radio.voxThreshold,
           hangTime: radio.voxHangTime,
         ),
-      );
-      if (!vox.processAudio(pcmData)) return;
+      )
+        ..threshold = radio.voxThreshold
+        ..hangTime = radio.voxHangTime;
+      final shouldTx = vox.processAudio(pcmData);
+      final wasTx = _txActive[radioId] == true;
+      if (shouldTx != wasTx) {
+        _txActive[radioId] = shouldTx;
+        _sendTransmitterPdu(
+          radio,
+          shouldTx
+              ? DisConstants.transmitterStateOnTransmitting
+              : DisConstants.transmitterStateOnNotTransmitting,
+        );
+        notifyListeners();
+      }
+      if (!shouldTx) return;
+    } else {
+      if (_txActive[radioId] != true) return;
     }
 
     // Apply input gain
     final gainedPcm = _applyGain(pcmData, radio.inputGain);
+
+    // Sidetone: feed mic back to speaker at configured level
+    if (radio.sidetoneVolume > 0) {
+      final st = _applyGain(gainedPcm, radio.sidetoneVolume);
+      AudioManager.instance.playAudioImmediate(
+        st,
+        _settings?.defaultSampleRate ?? DisConstants.sampleRate8kHz,
+        pan: radio.outputPan,
+      );
+    }
 
     final encodingType = _settings?.defaultEncodingType ?? DisConstants.encodingMulaw;
     final Uint8List encoded;
@@ -224,6 +533,7 @@ class DisProvider extends ChangeNotifier {
       samples: sampleCount,
       data: encoded,
       exerciseId: _settings?.exerciseId ?? 1,
+      protocolVersion: _protocolVersion,
     );
 
     _network.sendSignal(signalPdu);
@@ -237,6 +547,13 @@ class DisProvider extends ChangeNotifier {
           ? DisConstants.transmitterStateOnTransmitting
           : DisConstants.transmitterStateOnNotTransmitting;
       _sendTransmitterPdu(radio, txState);
+    }
+    for (final intercom in _intercoms) {
+      if (!intercom.enabled) continue;
+      _sendIntercomControlPdu(
+        intercom,
+        transmitting: _txActive[intercom.id] == true,
+      );
     }
   }
 
@@ -253,6 +570,7 @@ class DisProvider extends ChangeNotifier {
       cryptoSystem: radio.cryptoSystem,
       cryptoKeyId: radio.cryptoKeyId,
       exerciseId: _settings?.exerciseId ?? 1,
+      protocolVersion: _protocolVersion,
     );
     _network.sendTransmitter(pdu);
     _packetsTx++;
@@ -322,6 +640,7 @@ class DisProvider extends ChangeNotifier {
       volumed,
       pdu.sampleRate,
       bitsPerSample: bitsPerSample,
+      pan: matchingRadio.outputPan,
     );
 
     // Update RX state
@@ -332,6 +651,10 @@ class DisProvider extends ChangeNotifier {
     // Update receiver PDU for any radio tuned to this frequency
     for (final radio in _radios) {
       if (!radio.enabled) continue;
+      // Ignore our own transmissions.
+      if (pdu.entityId == radio.entityId && pdu.radioId == radio.radioNumber) {
+        continue;
+      }
       if ((radio.frequency - pdu.frequency).abs() < radio.bandwidth / 2) {
         if (pdu.transmitState == DisConstants.transmitterStateOnTransmitting) {
           _setRxActive(radio.id, true, pdu.entityId, pdu.radioId);
@@ -344,6 +667,7 @@ class DisProvider extends ChangeNotifier {
             transmitterEntityId: pdu.entityId,
             transmitterRadioId: pdu.radioId,
             exerciseId: _settings?.exerciseId ?? 1,
+            protocolVersion: _protocolVersion,
           );
           _network.sendReceiver(rxPdu);
         }
@@ -352,12 +676,18 @@ class DisProvider extends ChangeNotifier {
   }
 
   void _handleIntercomSignalPdu(IntercomSignalPdu pdu) {
-    final intercom = _intercoms.firstWhere(
-      (i) =>
-          i.entityId == pdu.entityId &&
-          i.communicationsDeviceId == pdu.communicationsDeviceId,
-      orElse: () => _intercoms.isNotEmpty ? _intercoms.first : throw Exception(),
-    );
+    IntercomConfig? intercom;
+    try {
+      intercom = _intercoms.firstWhere(
+        (i) => i.communicationsDeviceId == pdu.communicationsDeviceId,
+      );
+    } catch (_) {
+      if (_intercoms.isEmpty) return;
+      intercom = _intercoms.first;
+    }
+
+    // Don't play back own transmissions.
+    if (pdu.entityId == intercom.entityId) return;
 
     Uint8List pcmBytes;
     final et = pdu.encodingType;
@@ -381,7 +711,9 @@ class DisProvider extends ChangeNotifier {
       intercom.id,
       pcmBytes,
       pdu.sampleRate,
+      pan: intercom.outputPan,
     );
+    _setRxActive(intercom.id, true, pdu.entityId, pdu.communicationsDeviceId);
   }
 
   void _setRxActive(String radioId, bool active, EntityId? entity, int? radioNum) {

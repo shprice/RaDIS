@@ -148,7 +148,7 @@ class AudioManager {
     int sampleRate,
     void Function(Uint8List) onData,
   ) async {
-    _ensureInitialized();
+    if (!_initialized) await initialize();
     await stopCapture(radioId);
 
     final recorder = AudioRecorder();
@@ -230,11 +230,13 @@ class AudioManager {
   ///
   /// [bitsPerSample] must match the actual sample width: 16 for decoded
   /// G.711 / raw 16-bit PCM, 8 for 8-bit unsigned PCM.
+  /// [pan] is stereo position: -1.0 = full left, 0.0 = centre, 1.0 = full right.
   Future<void> playAudio(
     String radioId,
     Uint8List pcmBytes,
     int sampleRate, {
     int bitsPerSample = 16,
+    double pan = 0.0,
   }) async {
     _ensureInitialized();
     if (pcmBytes.isEmpty) return;
@@ -250,7 +252,26 @@ class AudioManager {
       final key = 'rx_${radioId}_${_chunkSeq++}';
       final source = await SoLoud.instance.loadMem(key, wavBytes,
           autoDispose: true);
-      SoLoud.instance.play(source);
+      SoLoud.instance.play(source, pan: pan);
+    } catch (_) {}
+  }
+
+  /// Play [pcmBytes] immediately without the jitter buffer — for sidetone.
+  Future<void> playAudioImmediate(
+    Uint8List pcmBytes,
+    int sampleRate, {
+    int bitsPerSample = 16,
+    double volume = 1.0,
+    double pan = 0.0,
+  }) async {
+    _ensureInitialized();
+    if (pcmBytes.isEmpty) return;
+    try {
+      final wavBytes = _wrapInWav(pcmBytes, sampleRate, bitsPerSample: bitsPerSample);
+      final key = 'imm_${_chunkSeq++}';
+      final source = await SoLoud.instance.loadMem(key, wavBytes,
+          autoDispose: true);
+      SoLoud.instance.play(source, volume: volume, pan: pan);
     } catch (_) {}
   }
 

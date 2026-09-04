@@ -1,6 +1,12 @@
 class DisConstants {
   // Protocol
-  static const int protocolVersion = 7; // IEEE 1278.1-2012
+  // Protocol versions
+  static const int protocolVersionDis4 = 4; // IEEE 1278.1-1993
+  static const int protocolVersionDis5 = 5; // IEEE 1278.1a-1998
+  static const int protocolVersionDis6 = 6; // IEEE 1278.1-2012 (default)
+  static const int protocolVersionDis7 = 7; // SISO-STD-002.1-2017
+
+  static const int protocolVersion = protocolVersionDis6;
   static const int protocolFamilyRadioCommunications = 4;
 
   // PDU Types
@@ -113,13 +119,27 @@ class DisConstants {
   // Sample rates
   static const int sampleRate8kHz = 8000;
   static const int sampleRate16kHz = 16000;
+  static const int sampleRate32kHz = 32000;
 
-  // Intercom control types
+  // Intercom control types (controlType field)
   static const int intercomControlStatus = 1;
   static const int intercomControlRequest = 2;
   static const int intercomControlAcknowledge = 3;
 
-  // Intercom channel types
-  static const int intercomChannelTypeSimulated = 1;
-  static const int intercomChannelTypeUnsimulated = 2;
+  // Intercom command (command field) — IEEE 1278.1-2012
+  static const int intercomCommandOther = 0;
+  static const int intercomCommandInitialize = 1;   // once on station online
+  static const int intercomCommandChangeState = 2;  // heartbeat + state changes
+  static const int intercomCommandDisconnect = 3;   // once on station offline
+
+  // Intercom transmit line state
+  static const int intercomTransmitLineStateIdle = 0;
+  static const int intercomTransmitLineStateTransmitting = 1;
+
+  // Intercom Communications Channel Type — ENUM8 (SISO-REF-010)
+  static const int intercomChannelTypeReserved = 0;          // Reserved
+  static const int intercomChannelTypeFdx = 1;               // Connection FDX (default)
+  static const int intercomChannelTypeHdxRxOnly = 2;         // Connection HDX – Dest RX only
+  static const int intercomChannelTypeHdxTxOnly = 3;         // Connection HDX – Dest TX only
+  static const int intercomChannelTypeHdx = 4;               // Connection HDX
 }

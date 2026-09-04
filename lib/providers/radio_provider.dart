@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/radio_config.dart';
 import '../models/intercom_config.dart';
 import '../models/net_plan.dart';
@@ -203,5 +205,92 @@ class RadioProvider extends ChangeNotifier {
     _netPlans.add(plan);
     _saveNetPlans();
     notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Export / Import
+  // ---------------------------------------------------------------------------
+
+  /// Serialise radios, intercoms and net plans to a JSON map.
+  /// Audio device IDs are stripped (they are machine-specific).
+  Map<String, dynamic> exportConfig() {
+    return {
+      'version': 1,
+      'radios': _radios.map((r) {
+        final j = r.toJson();
+        j.remove('inputDeviceId');
+        j.remove('outputDeviceId');
+        return j;
+      }).toList(),
+      'intercoms': _intercoms.map((i) {
+        final j = i.toJson();
+        j.remove('inputDeviceId');
+        j.remove('outputDeviceId');
+        return j;
+      }).toList(),
+      'netPlans': _netPlans.map((n) => n.toJson()).toList(),
+    };
+  }
+
+  /// Export config to a user-chosen file via system save dialog.
+  /// Returns an error string on failure, or null on success / cancellation.
+  Future<String?> exportToFile() async {
+    try {
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Export RaDIS Configuration',
+        fileName: 'radis_config.json',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (path == null) return null;
+      final file = File(path);
+      await file.writeAsString(
+          const JsonEncoder.withIndent('  ').convert(exportConfig()));
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  /// Import config from a user-chosen file via system open dialog.
+  /// Replaces current radios, intercoms and net plans.
+  /// Returns an error string on failure, or null on success / cancellation.
+  Future<String?> importFromFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        dialogTitle: 'Import RaDIS Configuration',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return null;
+
+      final path = result.files.single.path;
+      if (path == null) return 'Could not access file path.';
+
+      final content = await File(path).readAsString();
+      final json = jsonDecode(content) as Map<String, dynamic>;
+
+      final version = json['version'] as int? ?? 1;
+      if (version != 1) return 'Unsupported config version: $version';
+
+      _radios = (json['radios'] as List? ?? [])
+          .map((e) => RadioConfig.fromJson(e as Map<String, dynamic>))
+          .toList();
+      _intercoms = (json['intercoms'] as List? ?? [])
+          .map((e) => IntercomConfig.fromJson(e as Map<String, dynamic>))
+          .toList();
+      _netPlans = (json['netPlans'] as List? ?? [])
+          .map((e) => NetPlan.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      await _saveRadios();
+      await _saveIntercoms();
+      await _saveNetPlans();
+      notifyListeners();
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
   }
 }

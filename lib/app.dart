@@ -36,7 +36,7 @@ class DisRadioApp extends StatelessWidget {
       child: Consumer<SettingsProvider>(
         builder: (context, settings, _) {
           return MaterialApp(
-            title: 'DIS Radio',
+            title: 'RaDIS',
             theme: buildLightTheme(),
             darkTheme: buildDarkTheme(),
             themeMode: settings.settings.darkMode ? ThemeMode.dark : ThemeMode.light,

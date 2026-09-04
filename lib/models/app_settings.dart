@@ -1,10 +1,12 @@
 import '../dis/constants.dart';
+import 'app_key_binding.dart';
 
 // Encoding types available in the Settings UI dropdown.
 const _kSupportedEncodingTypes = {
   DisConstants.encodingMulaw,
   DisConstants.encodingAlaw,
   DisConstants.encodingLinear16,
+  DisConstants.encodingCVSD,
 };
 
 int _validatedEncodingType(int? stored) {
@@ -29,6 +31,10 @@ class AppSettings {
   bool darkMode;
   bool showLevelMeters;
 
+  int disProtocolVersion;
+
+  List<AppKeyBinding> keyBindings;
+
   AppSettings({
     this.disLocalAddress = DisConstants.defaultLocalAddress,
     this.disPort = DisConstants.defaultPort,
@@ -42,7 +48,9 @@ class AppSettings {
     this.defaultEncodingType = DisConstants.encodingMulaw,
     this.darkMode = true,
     this.showLevelMeters = true,
-  });
+    this.disProtocolVersion = DisConstants.protocolVersionDis6,
+    List<AppKeyBinding>? keyBindings,
+  }) : keyBindings = keyBindings ?? [];
 
   Map<String, dynamic> toJson() => {
         'disLocalAddress': disLocalAddress,
@@ -57,6 +65,8 @@ class AppSettings {
         'defaultEncodingType': defaultEncodingType,
         'darkMode': darkMode,
         'showLevelMeters': showLevelMeters,
+        'disProtocolVersion': disProtocolVersion,
+        'keyBindings': keyBindings.map((b) => b.toJson()).toList(),
       };
 
   factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
@@ -76,6 +86,13 @@ class AppSettings {
             (json['defaultEncodingType'] as num?)?.toInt()),
         darkMode: json['darkMode'] as bool? ?? true,
         showLevelMeters: json['showLevelMeters'] as bool? ?? true,
+        disProtocolVersion: (json['disProtocolVersion'] as num?)?.toInt() ??
+            DisConstants.protocolVersionDis6,
+        keyBindings: (json['keyBindings'] as List<dynamic>?)
+                ?.map((e) =>
+                    AppKeyBinding.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            [],
       );
 
   AppSettings copyWith({
@@ -91,6 +108,8 @@ class AppSettings {
     int? defaultEncodingType,
     bool? darkMode,
     bool? showLevelMeters,
+    int? disProtocolVersion,
+    List<AppKeyBinding>? keyBindings,
   }) =>
       AppSettings(
         disLocalAddress: disLocalAddress ?? this.disLocalAddress,
@@ -105,5 +124,7 @@ class AppSettings {
         defaultEncodingType: defaultEncodingType ?? this.defaultEncodingType,
         darkMode: darkMode ?? this.darkMode,
         showLevelMeters: showLevelMeters ?? this.showLevelMeters,
+        disProtocolVersion: disProtocolVersion ?? this.disProtocolVersion,
+        keyBindings: keyBindings ?? this.keyBindings,
       );
 }

@@ -11,6 +11,7 @@ class ReceiverPdu {
   final EntityId transmitterEntityId;
   final int transmitterRadioId;
   final int exerciseId;
+  final int protocolVersion;
 
   const ReceiverPdu({
     required this.entityId,
@@ -20,6 +21,7 @@ class ReceiverPdu {
     required this.transmitterRadioId,
     required this.exerciseId,
     this.receivedPowerDbm = 0.0,
+    this.protocolVersion = DisConstants.protocolVersion,
   });
 
   Uint8List encode() {
@@ -31,6 +33,7 @@ class ReceiverPdu {
 
     final headerBytes = PduHeader(
       exerciseId: exerciseId,
+      protocolVersion: protocolVersion,
       pduType: DisConstants.pduTypeReceiver,
       protocolFamily: DisConstants.protocolFamilyRadioCommunications,
       length: totalSize,

@@ -114,7 +114,6 @@ class _DeviceList extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  fontFamily: 'Courier New',
                   fontSize: 11,
                   letterSpacing: 3,
                   color: color,
@@ -207,7 +206,6 @@ class _Chip extends StatelessWidget {
         style: const TextStyle(
           fontSize: 9,
           color: AppColors.textMuted,
-          fontFamily: 'Courier New',
         ),
       ),
     );

@@ -11,7 +11,7 @@ class VoxDetector {
   DateTime? _lastVoiceTime;
   int _consecutiveVoiceChunks = 0;
 
-  static const int _activationChunks = 3; // 3 chunks (~60ms) to activate
+  static const int _activationChunks = 1; // 1 chunk (~100ms) to activate
 
   VoxDetector({
     this.threshold = 0.05,

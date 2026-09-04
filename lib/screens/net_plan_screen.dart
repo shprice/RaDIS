@@ -72,7 +72,7 @@ class _NetPlanScreenState extends State<NetPlanScreen> {
                         selectedColor: AppColors.primaryGreen,
                         title: Text(plan.name,
                             style: const TextStyle(
-                                fontFamily: 'Courier New', fontSize: 13)),
+                                fontSize: 13)),
                         subtitle: Text('${plan.channels.length} channels',
                             style: const TextStyle(
                                 fontSize: 10, color: AppColors.textMuted)),
@@ -193,7 +193,6 @@ class _NetPlanEditorState extends State<_NetPlanEditor> {
                 child: TextFormField(
                   initialValue: _plan.name,
                   style: const TextStyle(
-                      fontFamily: 'Courier New',
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: AppColors.text),
@@ -243,8 +242,7 @@ class _NetPlanEditorState extends State<_NetPlanEditor> {
               style: TextStyle(
                   fontSize: 11,
                   letterSpacing: 3,
-                  color: AppColors.textMuted,
-                  fontFamily: 'Courier New')),
+                  color: AppColors.textMuted)),
           const SizedBox(height: 8),
           Expanded(
             child: ListView.builder(
@@ -332,7 +330,6 @@ class _ChannelTile extends StatelessWidget {
               child: Text(
                 '${index + 1}',
                 style: const TextStyle(
-                    fontFamily: 'Courier New',
                     fontSize: 14,
                     color: AppColors.primaryGreen,
                     fontWeight: FontWeight.bold),
@@ -342,7 +339,6 @@ class _ChannelTile extends StatelessWidget {
             Text(
               channel.name,
               style: const TextStyle(
-                  fontFamily: 'Courier New',
                   fontWeight: FontWeight.bold,
                   color: AppColors.text),
             ),
@@ -350,7 +346,6 @@ class _ChannelTile extends StatelessWidget {
             Text(
               '${(channel.frequency / 1e6).toStringAsFixed(3)} MHz',
               style: const TextStyle(
-                  fontFamily: 'Courier New',
                   color: Color(0xFF39FF14),
                   fontSize: 12),
             ),
@@ -358,7 +353,7 @@ class _ChannelTile extends StatelessWidget {
             Text(
               channel.modulationType.displayName,
               style: const TextStyle(
-                  fontSize: 10, color: AppColors.amber, fontFamily: 'Courier New'),
+                  fontSize: 10, color: AppColors.amber),
             ),
           ],
         ),
@@ -428,7 +423,7 @@ class _ChannelEditorState extends State<_ChannelEditor> {
                     isDense: true,
                     border: OutlineInputBorder()),
                 style: const TextStyle(
-                    color: AppColors.text, fontFamily: 'Courier New', fontSize: 12),
+                    color: AppColors.text, fontSize: 12),
                 items: RadioModulationType.values
                     .map((m) => DropdownMenuItem(
                           value: m,
@@ -454,7 +449,7 @@ class _ChannelEditorState extends State<_ChannelEditor> {
                     isDense: true,
                     border: OutlineInputBorder()),
                 style: const TextStyle(
-                    color: AppColors.text, fontFamily: 'Courier New', fontSize: 12),
+                    color: AppColors.text, fontSize: 12),
                 items: const [
                   DropdownMenuItem(value: 0, child: Text('NONE')),
                   DropdownMenuItem(value: 1, child: Text('KY-28')),
@@ -491,7 +486,7 @@ class _ChannelEditorState extends State<_ChannelEditor> {
     return TextFormField(
       initialValue: value,
       style: const TextStyle(
-          color: AppColors.text, fontFamily: 'Courier New', fontSize: 12),
+          color: AppColors.text, fontSize: 12),
       decoration: InputDecoration(
         labelText: label,
         isDense: true,

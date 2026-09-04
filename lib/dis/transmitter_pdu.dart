@@ -127,6 +127,7 @@ class TransmitterPdu {
   final int cryptoKeyId;
   final Uint8List modulationParameters;
   final int exerciseId;
+  final int protocolVersion;
 
   TransmitterPdu({
     required this.entityId,
@@ -149,6 +150,7 @@ class TransmitterPdu {
     this.cryptoSystem = DisConstants.cryptoSystemNone,
     this.cryptoKeyId = 0,
     Uint8List? modulationParameters,
+    this.protocolVersion = DisConstants.protocolVersion,
   }) : modulationParameters = modulationParameters ?? Uint8List(0);
 
   Uint8List encode() {
@@ -166,6 +168,7 @@ class TransmitterPdu {
 
     final header = PduHeader(
       exerciseId: exerciseId,
+      protocolVersion: protocolVersion,
       pduType: DisConstants.pduTypeTransmitter,
       protocolFamily: DisConstants.protocolFamilyRadioCommunications,
       length: totalSize,

@@ -4,8 +4,11 @@
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
+#include <unistd.h>
+#include <climits>
 
 #include "flutter/generated_plugin_registrant.h"
+#include "global_hotkey_plugin.h"
 
 struct _MyApplication {
   GtkApplication parent_instance;
@@ -45,14 +48,28 @@ static void my_application_activate(GApplication* application) {
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));
-    gtk_header_bar_set_title(header_bar, "dis_radio");
+    gtk_header_bar_set_title(header_bar, "RaDIS");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
-    gtk_window_set_title(window, "dis_radio");
+    gtk_window_set_title(window, "RaDIS");
   }
 
   gtk_window_set_default_size(window, 1280, 720);
+
+  // Set the window icon from the bundled PNG (data/app_icon.png relative to exe).
+  {
+    char exe_buf[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exe_buf, sizeof(exe_buf) - 1);
+    if (len > 0) {
+      exe_buf[len] = '\0';
+      gchar* dir = g_path_get_dirname(exe_buf);
+      gchar* icon_path = g_build_filename(dir, "data", "app_icon.png", nullptr);
+      gtk_window_set_default_icon_from_file(icon_path, nullptr);
+      g_free(icon_path);
+      g_free(dir);
+    }
+  }
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
   fl_dart_project_set_dart_entrypoint_arguments(
@@ -74,6 +91,7 @@ static void my_application_activate(GApplication* application) {
   gtk_widget_realize(GTK_WIDGET(view));
 
   fl_register_plugins(FL_PLUGIN_REGISTRY(view));
+  global_hotkey_plugin_register(FL_PLUGIN_REGISTRY(view));
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }

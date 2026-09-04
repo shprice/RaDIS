@@ -106,7 +106,6 @@ class _LedIndicator extends StatelessWidget {
           label,
           style: const TextStyle(
             fontSize: 9,
-            fontFamily: 'Courier New',
             color: AppColors.textMuted,
             letterSpacing: 1,
           ),

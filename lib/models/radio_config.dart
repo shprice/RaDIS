@@ -1,7 +1,20 @@
 import 'package:uuid/uuid.dart';
 import '../dis/entity_id.dart';
 import '../dis/constants.dart';
-import 'ptt_binding.dart';
+import 'trigger_mode.dart';
+
+TriggerMode _parseTriggerMode(Map<String, dynamic> json) {
+  final name = json['triggerMode'] as String?;
+  if (name != null) {
+    return TriggerMode.values.firstWhere(
+      (m) => m.name == name,
+      orElse: () => TriggerMode.ptt,
+    );
+  }
+  // Migrate from legacy boolean fields
+  if (json['voxEnabled'] == true) return TriggerMode.vox;
+  return TriggerMode.ptt;
+}
 
 enum RadioModulationType {
   am,
@@ -47,11 +60,15 @@ class RadioConfig {
   double inputGain;
   double outputVolume;
   double squelch;
+  double sidetoneVolume;
+  double outputPan; // -1.0 (left) to 1.0 (right)
 
-  PttBinding? pttBinding;
-  bool voxEnabled;
+  List<String> pttBindingIds;
+  TriggerMode triggerMode;
   double voxThreshold;
   Duration voxHangTime;
+
+  bool get voxEnabled => triggerMode == TriggerMode.vox;
 
   String? netPlanId;
   int? netChannelIndex;
@@ -74,8 +91,10 @@ class RadioConfig {
     this.inputGain = 1.0,
     this.outputVolume = 0.8,
     this.squelch = 0.1,
-    this.pttBinding,
-    this.voxEnabled = false,
+    this.sidetoneVolume = 0.0,
+    this.outputPan = 0.0,
+    List<String>? pttBindingIds,
+    this.triggerMode = TriggerMode.ptt,
     this.voxThreshold = 0.05,
     this.voxHangTime = const Duration(milliseconds: 500),
     this.netPlanId,
@@ -83,7 +102,8 @@ class RadioConfig {
     EntityId? entityId,
     this.radioNumber = 1,
   })  : id = id ?? const Uuid().v4(),
-        entityId = entityId ?? EntityId.zero();
+        entityId = entityId ?? EntityId.zero(),
+        pttBindingIds = pttBindingIds ?? [];
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -100,8 +120,10 @@ class RadioConfig {
         'inputGain': inputGain,
         'outputVolume': outputVolume,
         'squelch': squelch,
-        'pttBinding': pttBinding?.toJson(),
-        'voxEnabled': voxEnabled,
+        'sidetoneVolume': sidetoneVolume,
+        'outputPan': outputPan,
+        'pttBindingIds': pttBindingIds,
+        'triggerMode': triggerMode.name,
         'voxThreshold': voxThreshold,
         'voxHangTimeMs': voxHangTime.inMilliseconds,
         'netPlanId': netPlanId,
@@ -128,10 +150,13 @@ class RadioConfig {
         inputGain: (json['inputGain'] as num?)?.toDouble() ?? 1.0,
         outputVolume: (json['outputVolume'] as num?)?.toDouble() ?? 0.8,
         squelch: (json['squelch'] as num?)?.toDouble() ?? 0.1,
-        pttBinding: json['pttBinding'] != null
-            ? PttBinding.fromJson(json['pttBinding'] as Map<String, dynamic>)
-            : null,
-        voxEnabled: json['voxEnabled'] as bool? ?? false,
+        sidetoneVolume: (json['sidetoneVolume'] as num?)?.toDouble() ?? 0.0,
+        outputPan: (json['outputPan'] as num?)?.toDouble() ?? 0.0,
+        pttBindingIds: (json['pttBindingIds'] as List<dynamic>?)
+                ?.map((e) => e as String)
+                .toList() ??
+            [],
+        triggerMode: _parseTriggerMode(json),
         voxThreshold: (json['voxThreshold'] as num?)?.toDouble() ?? 0.05,
         voxHangTime: Duration(
           milliseconds: (json['voxHangTimeMs'] as num?)?.toInt() ?? 500,
@@ -158,8 +183,10 @@ class RadioConfig {
     double? inputGain,
     double? outputVolume,
     double? squelch,
-    PttBinding? pttBinding,
-    bool? voxEnabled,
+    double? sidetoneVolume,
+    double? outputPan,
+    List<String>? pttBindingIds,
+    TriggerMode? triggerMode,
     double? voxThreshold,
     Duration? voxHangTime,
     String? netPlanId,
@@ -182,8 +209,10 @@ class RadioConfig {
         inputGain: inputGain ?? this.inputGain,
         outputVolume: outputVolume ?? this.outputVolume,
         squelch: squelch ?? this.squelch,
-        pttBinding: pttBinding ?? this.pttBinding,
-        voxEnabled: voxEnabled ?? this.voxEnabled,
+        sidetoneVolume: sidetoneVolume ?? this.sidetoneVolume,
+        outputPan: outputPan ?? this.outputPan,
+        pttBindingIds: pttBindingIds ?? this.pttBindingIds,
+        triggerMode: triggerMode ?? this.triggerMode,
         voxThreshold: voxThreshold ?? this.voxThreshold,
         voxHangTime: voxHangTime ?? this.voxHangTime,
         netPlanId: netPlanId ?? this.netPlanId,

@@ -9,8 +9,6 @@ const _accentAmber = Color(0xFFFFB300);
 const _textLight = Color(0xFFE0E0E0);
 const _textMuted = Color(0xFF9E9E9E);
 
-const militaryFontFamily = 'Courier New';
-
 ThemeData buildDarkTheme() {
   return ThemeData(
     brightness: Brightness.dark,
@@ -40,7 +38,6 @@ ThemeData buildDarkTheme() {
       foregroundColor: _primaryGreenLight,
       elevation: 0,
       titleTextStyle: TextStyle(
-        fontFamily: militaryFontFamily,
         fontSize: 18,
         fontWeight: FontWeight.bold,
         color: _primaryGreenLight,
