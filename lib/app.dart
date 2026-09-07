@@ -20,7 +20,7 @@ class DisRadioApp extends StatelessWidget {
           create: (_) => RadioProvider(),
           update: (context, settings, rp) {
             rp ??= RadioProvider();
-            rp.load(settings.settings.siteId, settings.settings.applicationId);
+            rp.load();
             return rp;
           },
         ),

@@ -5,7 +5,8 @@ class LevelMeter extends StatefulWidget {
   final double width;
   final double height;
   final bool horizontal;
-  final double? threshold; // 0.0–1.0, draws an amber line at this level
+  final double? threshold;
+  final ValueChanged<double>? onThresholdChanged;
 
   const LevelMeter({
     super.key,
@@ -14,6 +15,7 @@ class LevelMeter extends StatefulWidget {
     this.height = 80,
     this.horizontal = false,
     this.threshold,
+    this.onThresholdChanged,
   });
 
   @override
@@ -23,23 +25,46 @@ class LevelMeter extends StatefulWidget {
 class _LevelMeterState extends State<LevelMeter> {
   double _level = 0;
 
+  void _handleDrag(DragUpdateDetails details) {
+    final h = widget.height;
+    final y = details.localPosition.dy.clamp(0.0, h);
+    widget.onThresholdChanged!((1.0 - y / h).clamp(0.0, 1.0));
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<double>(
       stream: widget.levelStream,
       builder: (context, snapshot) {
         _level = snapshot.data ?? 0;
-        return CustomPaint(
+        final painter = CustomPaint(
           size: Size(widget.width, widget.height),
           painter: _LevelMeterPainter(_level, widget.horizontal, widget.threshold),
         );
+
+        if (widget.onThresholdChanged != null) {
+          return MouseRegion(
+            cursor: SystemMouseCursors.resizeRow,
+            child: GestureDetector(
+              onVerticalDragUpdate: _handleDrag,
+              onTapDown: (details) {
+                final h = widget.height;
+                final y = details.localPosition.dy.clamp(0.0, h);
+                widget.onThresholdChanged!((1.0 - y / h).clamp(0.0, 1.0));
+              },
+              child: painter,
+            ),
+          );
+        }
+
+        return painter;
       },
     );
   }
 }
 
 class _LevelMeterPainter extends CustomPainter {
-  final double level; // 0.0 - 1.0
+  final double level;
   final bool horizontal;
   final double? threshold;
 
@@ -80,7 +105,6 @@ class _LevelMeterPainter extends CustomPainter {
       }
     }
 
-    // Draw threshold line if provided
     if (threshold != null) {
       final threshPaint = Paint()
         ..color = const Color(0xFFFFB300)
@@ -92,10 +116,16 @@ class _LevelMeterPainter extends CustomPainter {
       } else {
         final y = size.height - threshold! * size.height;
         canvas.drawLine(Offset(0, y), Offset(size.width, y), threshPaint);
+        // Small tick marks to hint the line is draggable
+        final tickPaint = Paint()
+          ..color = const Color(0xFFFFB300)
+          ..strokeWidth = 1.0;
+        canvas.drawLine(Offset(0, y - 3), Offset(0, y + 3), tickPaint);
+        canvas.drawLine(
+            Offset(size.width, y - 3), Offset(size.width, y + 3), tickPaint);
       }
     }
 
-    // Draw border
     final borderPaint = Paint()
       ..color = const Color(0xFF333333)
       ..style = PaintingStyle.stroke

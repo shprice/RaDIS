@@ -22,7 +22,7 @@ class RadioProvider extends ChangeNotifier {
   List<IntercomConfig> get intercoms => List.unmodifiable(_intercoms);
   List<NetPlan> get netPlans => List.unmodifiable(_netPlans);
 
-  Future<void> load(int defaultSiteId, int defaultAppId) async {
+  Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
 
     final radiosJson = prefs.getString(_radiosKey);
@@ -138,10 +138,9 @@ class RadioProvider extends ChangeNotifier {
 
   void removeNetPlan(String id) {
     _netPlans.removeWhere((n) => n.id == id);
-    // Clear any radio assignments to this plan
     for (int i = 0; i < _radios.length; i++) {
       if (_radios[i].netPlanId == id) {
-        _radios[i] = _radios[i].copyWith(netPlanId: null, netChannelIndex: null);
+        _radios[i] = _applyNetAssignment(_radios[i], netPlanId: null, netChannelIndex: null);
       }
     }
     _saveNetPlans();
@@ -160,37 +159,94 @@ class RadioProvider extends ChangeNotifier {
 
   void assignRadioToChannel(String radioId, String? netPlanId, int? channelIndex) {
     final idx = _radios.indexWhere((r) => r.id == radioId);
-    if (idx >= 0) {
-      final radio = _radios[idx];
-      double? newFreq;
-      RadioModulationType? newMod;
-      int? newCrypto;
-      int? newCryptoKey;
+    if (idx < 0) return;
+    final radio = _radios[idx];
 
-      if (netPlanId != null && channelIndex != null) {
-        final plan = _netPlans.firstWhere((n) => n.id == netPlanId,
-            orElse: () => throw Exception('Plan not found'));
+    if (netPlanId == null || channelIndex == null) {
+      _radios[idx] = _applyNetAssignment(radio, netPlanId: null, netChannelIndex: null);
+    } else {
+      try {
+        final plan = _netPlans.firstWhere((n) => n.id == netPlanId);
         if (channelIndex < plan.channels.length) {
           final ch = plan.channels[channelIndex];
-          newFreq = ch.frequency;
-          newMod = ch.modulationType;
-          newCrypto = ch.cryptoSystem;
-          newCryptoKey = ch.cryptoKeyId;
+          _radios[idx] = _applyNetAssignment(radio,
+              netPlanId: netPlanId,
+              netChannelIndex: channelIndex,
+              frequency: ch.frequency,
+              modulationType: ch.modulationType,
+              cryptoSystem: ch.cryptoSystem,
+              cryptoKeyId: ch.cryptoKeyId);
+        }
+      } catch (_) {}
+    }
+    _saveRadios();
+    notifyListeners();
+  }
+
+  /// Updates the radio's frequency and auto-selects a matching net channel if
+  /// one exists, otherwise clears the net assignment (manual tune).
+  void updateRadioFrequency(String radioId, double hz) {
+    for (final plan in _netPlans) {
+      for (var i = 0; i < plan.channels.length; i++) {
+        if ((plan.channels[i].frequency - hz).abs() < 1.0) {
+          assignRadioToChannel(radioId, plan.id, i);
+          return;
         }
       }
-
-      _radios[idx] = radio.copyWith(
-        netPlanId: netPlanId,
-        netChannelIndex: channelIndex,
-        frequency: newFreq,
-        modulationType: newMod,
-        cryptoSystem: newCrypto,
-        cryptoKeyId: newCryptoKey,
-      );
-      _saveRadios();
-      notifyListeners();
     }
+    final idx = _radios.indexWhere((r) => r.id == radioId);
+    if (idx < 0) return;
+    _radios[idx] = _applyNetAssignment(_radios[idx],
+        netPlanId: null, netChannelIndex: null, frequency: hz);
+    _saveRadios();
+    notifyListeners();
   }
+
+  /// Builds a copy of [r] with net assignment fields set explicitly (supports
+  /// null to clear), preserving all other fields unchanged.
+  RadioConfig _applyNetAssignment(
+    RadioConfig r, {
+    required String? netPlanId,
+    required int? netChannelIndex,
+    double? frequency,
+    RadioModulationType? modulationType,
+    int? cryptoSystem,
+    int? cryptoKeyId,
+  }) =>
+      RadioConfig(
+        id: r.id,
+        name: r.name,
+        enabled: r.enabled,
+        frequency: frequency ?? r.frequency,
+        bandwidth: r.bandwidth,
+        modulationType: modulationType ?? r.modulationType,
+        powerWatts: r.powerWatts,
+        cryptoSystem: cryptoSystem ?? r.cryptoSystem,
+        cryptoKeyId: cryptoKeyId ?? r.cryptoKeyId,
+        inputDeviceId: r.inputDeviceId,
+        outputDeviceId: r.outputDeviceId,
+        inputGain: r.inputGain,
+        outputVolume: r.outputVolume,
+        squelch: r.squelch,
+        sidetoneVolume: r.sidetoneVolume,
+        outputPan: r.outputPan,
+        pttBindingIds: List<String>.from(r.pttBindingIds),
+        triggerMode: r.triggerMode,
+        voxThreshold: r.voxThreshold,
+        voxHangTime: r.voxHangTime,
+        netPlanId: netPlanId,
+        netChannelIndex: netChannelIndex,
+        exerciseId: r.exerciseId,
+        entityId: r.entityId,
+        radioNumber: r.radioNumber,
+        disLocalAddress: r.disLocalAddress,
+        disPort: r.disPort,
+        disUseMulticast: r.disUseMulticast,
+        disMulticastGroup: r.disMulticastGroup,
+        disUnicastAddress: r.disUnicastAddress,
+        disNetworkInterface: r.disNetworkInterface,
+        disProtocolVersion: r.disProtocolVersion,
+      );
 
   NetPlan? getNetPlan(String? id) {
     if (id == null) return null;

@@ -187,55 +187,13 @@ class _NetPlanEditorState extends State<_NetPlanEditor> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  initialValue: _plan.name,
-                  style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.text),
-                  decoration: const InputDecoration(
-                    labelText: 'Plan Name',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (v) {
-                    setState(() => _plan = NetPlan(
-                          id: _plan.id,
-                          name: v,
-                          description: _plan.description,
-                          channels: _plan.channels,
-                        ));
-                    _save();
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                icon: const Icon(Icons.add),
-                label: const Text('Add Channel'),
-                onPressed: _addChannel,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TextFormField(
-            initialValue: _plan.description,
-            style: const TextStyle(color: AppColors.text, fontSize: 12),
-            decoration: const InputDecoration(
-              labelText: 'Description',
-              border: OutlineInputBorder(),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.add),
+              label: const Text('Add Channel'),
+              onPressed: _addChannel,
             ),
-            onChanged: (v) {
-              setState(() => _plan = NetPlan(
-                    id: _plan.id,
-                    name: _plan.name,
-                    description: v,
-                    channels: _plan.channels,
-                  ));
-              _save();
-            },
           ),
           const SizedBox(height: 16),
           const Text('CHANNELS',

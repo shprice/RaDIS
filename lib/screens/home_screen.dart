@@ -418,27 +418,18 @@ class _RadiosPanel extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.add_circle_outline),
             tooltip: 'Add Radio',
-            onPressed: () => rp.addRadio(
-              siteId: sp.settings.siteId,
-              applicationId: sp.settings.applicationId,
-            ),
+            onPressed: () => rp.addRadio(),
           ),
           IconButton(
             icon: const Icon(Icons.headset_mic_outlined),
             tooltip: 'Add Intercom',
-            onPressed: () => rp.addIntercom(
-              siteId: sp.settings.siteId,
-              applicationId: sp.settings.applicationId,
-            ),
+            onPressed: () => rp.addIntercom(),
           ),
         ],
       ),
       body: rp.radios.isEmpty && rp.intercoms.isEmpty
           ? _EmptyState(
-              onAddRadio: () => rp.addRadio(
-                siteId: sp.settings.siteId,
-                applicationId: sp.settings.applicationId,
-              ),
+              onAddRadio: () => rp.addRadio(),
             )
           : _buildGrid(context, rp, sp),
     );
@@ -546,7 +537,7 @@ class _IntercomCard extends StatelessWidget {
     final sp = context.watch<SettingsProvider>();
     final txActive = dis.isTxActive(intercom.id);
     final rxState = dis.rxStates[intercom.id] ?? const RadioRxState();
-    final intercomSupported = dis.supportsIntercom;
+    final intercomSupported = dis.supportsIntercomFor(intercom.id);
 
     return Card(
       child: Padding(
@@ -660,19 +651,14 @@ class _IntercomCard extends StatelessWidget {
                     mode: intercom.triggerMode,
                   ),
                 const SizedBox(width: 12),
-                if (intercom.triggerMode == TriggerMode.vox)
-                  LevelMeter(
-                    levelStream: AudioManager.instance.inputLevel(intercom.id),
-                    height: 64,
-                    threshold: intercom.voxThreshold,
-                  )
-                else if (txActive)
-                  LevelMeter(
-                    levelStream: AudioManager.instance.inputLevel(intercom.id),
-                    height: 64,
-                  ),
-                if (intercom.triggerMode == TriggerMode.vox || txActive)
-                  const SizedBox(width: 12),
+                LevelMeter(
+                  levelStream: AudioManager.instance.inputLevel(intercom.id),
+                  height: 64,
+                  threshold: intercom.voxThreshold,
+                  onThresholdChanged: (v) =>
+                      rp.updateIntercom(intercom.copyWith(voxThreshold: v)),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -697,14 +683,10 @@ class _IntercomCard extends StatelessWidget {
             const SizedBox(height: 8),
             TriggerModeSelector(
               mode: intercom.triggerMode,
-              voxThreshold: intercom.voxThreshold,
               onChanged: (mode) {
                 final updated = intercom.copyWith(triggerMode: mode);
                 rp.updateIntercom(updated);
                 dis.updateRadios(rp.radios.toList(), rp.intercoms.toList());
-              },
-              onVoxThresholdChanged: (v) {
-                rp.updateIntercom(intercom.copyWith(voxThreshold: v));
               },
             ),
             if (intercom.triggerMode == TriggerMode.ptt ||

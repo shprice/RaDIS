@@ -32,12 +32,7 @@ class RadioCard extends StatelessWidget {
 
     final rxState = disProvider.rxStates[radio.id] ?? const RadioRxState();
     final txActive = disProvider.isTxActive(radio.id);
-    final netPlan = radioProvider.getNetPlan(radio.netPlanId);
-    final channelName = (netPlan != null &&
-            radio.netChannelIndex != null &&
-            radio.netChannelIndex! < netPlan.channels.length)
-        ? netPlan.channels[radio.netChannelIndex!].name
-        : null;
+    final muted = disProvider.isRadioMuted(radio.id);
 
     return Card(
       child: Padding(
@@ -45,21 +40,20 @@ class RadioCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(context, txActive, rxState, channelName, disProvider),
+            _buildHeader(context, txActive, rxState, disProvider),
             const SizedBox(height: 8),
             FrequencyDisplay(
               frequency: radio.frequency,
-              onChanged: (hz) =>
-                  radioProvider.updateRadio(radio.copyWith(frequency: hz)),
+              onChanged: (hz) => radioProvider.updateRadioFrequency(radio.id, hz),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             _buildNetDropdown(context, radioProvider),
             const SizedBox(height: 8),
-            _buildPttRow(context, txActive, rxState, disProvider),
-            const SizedBox(height: 8),
+            _buildPttRow(context, txActive, rxState, disProvider, muted),
+            const SizedBox(height: 6),
             const Divider(height: 1),
             const SizedBox(height: 6),
-            _buildControls(context, radioProvider, settingsProvider, disProvider),
+            _buildControls(context, radioProvider, settingsProvider, disProvider, muted),
           ],
         ),
       ),
@@ -68,20 +62,23 @@ class RadioCard extends StatelessWidget {
 
   Widget _buildNetDropdown(BuildContext context, RadioProvider rp) {
     final plans = rp.netPlans;
+    final isManual = radio.netPlanId == null || radio.netChannelIndex == null;
 
-    // Encode selection as "planId:channelIndex" strings for DropdownButton.
     final items = <DropdownMenuItem<String>>[
-      const DropdownMenuItem(
+      DropdownMenuItem(
         value: '',
-        child: Text('— No net —', style: TextStyle(fontSize: 12)),
+        child: Text(
+          'Manual',
+          style: TextStyle(fontSize: 12, color: AppColors.textMuted),
+        ),
       ),
       ...plans.expand((plan) => plan.channels.asMap().entries.map((e) {
             final key = '${plan.id}:${e.key}';
             return DropdownMenuItem<String>(
               value: key,
               child: Text(
-                '${plan.name} / ${e.value.name}',
-                style: const TextStyle(fontSize: 12),
+                e.value.name,
+                style: const TextStyle(fontSize: 12, color: AppColors.amber),
                 overflow: TextOverflow.ellipsis,
               ),
             );
@@ -89,16 +86,18 @@ class RadioCard extends StatelessWidget {
     ];
 
     final currentKey =
-        (radio.netPlanId != null && radio.netChannelIndex != null)
-            ? '${radio.netPlanId}:${radio.netChannelIndex}'
-            : '';
+        isManual ? '' : '${radio.netPlanId}:${radio.netChannelIndex}';
 
     return Container(
-      height: 32,
+      height: 28,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF111111),
-        border: Border.all(color: const Color(0xFF2E2E2E)),
+        color: const Color(0xFF0A1A0A),
+        border: Border.all(
+          color: isManual
+              ? const Color(0xFF2E2E2E)
+              : AppColors.amber.withValues(alpha: 0.45),
+        ),
         borderRadius: BorderRadius.circular(4),
       ),
       child: DropdownButtonHideUnderline(
@@ -106,9 +105,16 @@ class RadioCard extends StatelessWidget {
           isExpanded: true,
           value: items.any((i) => i.value == currentKey) ? currentKey : '',
           isDense: true,
-          icon: const Icon(Icons.arrow_drop_down, size: 16),
-          style: const TextStyle(fontSize: 12, color: AppColors.text),
-          dropdownColor: const Color(0xFF1E1E1E),
+          icon: Icon(
+            Icons.arrow_drop_down,
+            size: 16,
+            color: isManual ? AppColors.textMuted : AppColors.amber,
+          ),
+          style: TextStyle(
+            fontSize: 12,
+            color: isManual ? AppColors.textMuted : AppColors.amber,
+          ),
+          dropdownColor: const Color(0xFF0D1A0D),
           items: items,
           onChanged: (key) {
             if (key == null || key.isEmpty) {
@@ -125,7 +131,7 @@ class RadioCard extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context, bool txActive, RadioRxState rxState,
-      String? channelName, DisProvider disProvider) {
+      DisProvider disProvider) {
     return Row(
       children: [
         Expanded(
@@ -141,14 +147,13 @@ class RadioCard extends StatelessWidget {
                   letterSpacing: 2,
                 ),
               ),
-              if (channelName != null)
-                Text(
-                  channelName,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: AppColors.amber,
-                  ),
+              Text(
+                'ID: ${radio.radioNumber}',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.amber,
                 ),
+              ),
             ],
           ),
         ),
@@ -202,8 +207,9 @@ class RadioCard extends StatelessWidget {
   }
 
   Widget _buildPttRow(BuildContext context, bool txActive, RadioRxState rxState,
-      DisProvider disProvider) {
+      DisProvider disProvider, bool muted) {
     final mode = radio.triggerMode;
+    final radioProvider = context.read<RadioProvider>();
 
     Widget pttWidget;
     if (mode == TriggerMode.ptt) {
@@ -222,95 +228,96 @@ class RadioCard extends StatelessWidget {
             disProvider.startTransmit(radio.id);
           }
         },
-        onReleased: () {}, // no-op — toggle happens on press
+        onReleased: () {},
       );
     } else {
-      // VOX — show auto indicator
       pttWidget = _AutoTxIndicator(txActive: txActive, mode: mode);
     }
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        _LabelledMeter(
+          label: 'TX',
+          labelColor: txActive ? AppColors.amber : AppColors.textMuted,
+          levelStream: AudioManager.instance.inputLevel(radio.id),
+          threshold: radio.voxThreshold,
+          onThresholdChanged: (v) =>
+              radioProvider.updateRadio(radio.copyWith(voxThreshold: v)),
+        ),
+        const SizedBox(width: 8),
         pttWidget,
-        const SizedBox(width: 12),
-        // Level meter: always visible in VOX mode (with threshold line),
-        // only visible when txActive in PTT/LTCH modes.
-        if (mode == TriggerMode.vox)
-          LevelMeter(
-            levelStream: AudioManager.instance.inputLevel(radio.id),
-            height: 72,
-            threshold: radio.voxThreshold,
-          )
-        else if (txActive)
-          LevelMeter(
-            levelStream: AudioManager.instance.inputLevel(radio.id),
-            height: 72,
-          ),
+        const SizedBox(width: 8),
+        _LabelledMeter(
+          label: 'RX',
+          labelColor: muted
+              ? Colors.red.shade400
+              : (rxState.rxActive ? AppColors.rxGreen : AppColors.textMuted),
+          levelStream: AudioManager.instance.rxLevel(radio.id),
+          threshold: radio.squelch,
+          onThresholdChanged: (v) =>
+              radioProvider.updateRadio(radio.copyWith(squelch: v)),
+        ),
         const Spacer(),
-        if (rxState.rxActive)
-          Column(
-            children: [
-              const Icon(Icons.signal_cellular_alt,
-                  color: AppColors.rxGreen, size: 20),
-              Text(
-                '${rxState.signalDbm.toStringAsFixed(0)} dBm',
-                style: const TextStyle(
-                  fontSize: 9,
-                  color: AppColors.rxGreen,
-                ),
-              ),
-            ],
-          ),
       ],
     );
   }
 
   Widget _buildControls(BuildContext context, RadioProvider radioProvider,
-      SettingsProvider settingsProvider, DisProvider dis) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      SettingsProvider settingsProvider, DisProvider dis, bool muted) {
+    final isPtt = radio.triggerMode == TriggerMode.ptt ||
+        radio.triggerMode == TriggerMode.latchedPtt;
+    final allBindings = settingsProvider.settings.keyBindings;
+    final assigned =
+        allBindings.where((b) => radio.pttBindingIds.contains(b.id)).toList();
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          children: [
-            const Icon(Icons.volume_up, size: 12, color: AppColors.textMuted),
-            Expanded(
-              child: _CompactSlider(
-                value: radio.outputVolume,
-                label: 'VOL',
-                onChanged: (v) =>
-                    radioProvider.updateRadio(radio.copyWith(outputVolume: v)),
-              ),
+        // Audio output popup (volume + pan)
+        _PopupControl(
+          trigger: Tooltip(
+            message: 'Volume / Pan',
+            child: Icon(
+              Icons.tune,
+              size: 16,
+              color: AppColors.textMuted,
             ),
-            const SizedBox(width: 8),
-            const Icon(Icons.graphic_eq, size: 12, color: AppColors.textMuted),
-            Expanded(
-              child: _CompactSlider(
-                value: radio.squelch,
-                label: 'SQL',
-                onChanged: (v) =>
-                    radioProvider.updateRadio(radio.copyWith(squelch: v)),
-              ),
-            ),
-          ],
+          ),
+          popupBuilder: (_) => _AudioOutputPopup(
+            volume: radio.outputVolume,
+            pan: radio.outputPan,
+            onVolumeChanged: (v) =>
+                radioProvider.updateRadio(radio.copyWith(outputVolume: v)),
+            onPanChanged: (v) =>
+                radioProvider.updateRadio(radio.copyWith(outputPan: v)),
+          ),
         ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            const Icon(Icons.swap_horiz, size: 12, color: AppColors.textMuted),
-            Expanded(
-              child: _PanSlider(
-                value: radio.outputPan,
-                onChanged: (v) =>
-                    radioProvider.updateRadio(radio.copyWith(outputPan: v)),
+        const SizedBox(width: 6),
+        // Mute toggle
+        GestureDetector(
+          onTap: () => dis.toggleRadioMute(radio.id),
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Tooltip(
+              message: muted ? 'Unmute' : 'Mute',
+              child: Icon(
+                muted ? Icons.volume_off : Icons.volume_up,
+                size: 16,
+                color: muted ? Colors.red.shade400 : AppColors.textMuted,
               ),
             ),
-          ],
+          ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(width: 10),
+        const SizedBox(
+          height: 16,
+          child: VerticalDivider(width: 1, color: Color(0xFF333333)),
+        ),
+        const SizedBox(width: 10),
+        // Trigger mode selector
         TriggerModeSelector(
           mode: radio.triggerMode,
-          voxThreshold: radio.voxThreshold,
           onChanged: (mode) {
             final updated = radio.copyWith(triggerMode: mode);
             radioProvider.updateRadio(updated);
@@ -319,88 +326,263 @@ class RadioCard extends StatelessWidget {
               radioProvider.intercoms.toList(),
             );
           },
-          onVoxThresholdChanged: (v) =>
-              radioProvider.updateRadio(radio.copyWith(voxThreshold: v)),
         ),
-        if (radio.triggerMode == TriggerMode.ptt ||
-            radio.triggerMode == TriggerMode.latchedPtt) ...[
-          const SizedBox(height: 6),
-          _buildKeyBindingsRow(context, radioProvider, settingsProvider),
+        // Keys pill — only in PTT/latched modes
+        if (isPtt) ...[
+          const SizedBox(width: 8),
+          _KeysPill(
+            radio: radio,
+            assigned: assigned,
+            radioProvider: radioProvider,
+            settingsProvider: settingsProvider,
+          ),
         ],
       ],
     );
   }
+}
 
-  Widget _buildKeyBindingsRow(BuildContext context, RadioProvider radioProvider,
-      SettingsProvider settingsProvider) {
-    final allBindings = settingsProvider.settings.keyBindings;
-    final assigned = allBindings
-        .where((b) => radio.pttBindingIds.contains(b.id))
-        .toList();
+// ---------------------------------------------------------------------------
+// Popup control — shows an overlay anchored to the trigger widget
+// ---------------------------------------------------------------------------
 
-    return Row(
-      children: [
-        const Icon(Icons.keyboard_outlined, size: 12, color: AppColors.textMuted),
-        const SizedBox(width: 6),
-        Expanded(
-          child: assigned.isEmpty
-              ? const Text(
-                  'No keys assigned',
-                  style: TextStyle(fontSize: 10, color: AppColors.textMuted),
-                )
-              : Wrap(
-                  spacing: 4,
-                  runSpacing: 2,
-                  children: assigned
-                      .map((b) => Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 5, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF111111),
-                              border:
-                                  Border.all(color: const Color(0xFF333333)),
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                            child: Text(
-                              b.fullKeyLabel,
-                              style: const TextStyle(
-                                fontFamily: 'Courier New',
-                                fontSize: 10,
-                                color: AppColors.amber,
-                              ),
-                            ),
-                          ))
-                      .toList(),
-                ),
-        ),
-        const SizedBox(width: 4),
-        SizedBox(
-          height: 24,
-          child: OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              minimumSize: Size.zero,
-              side: const BorderSide(color: Color(0xFF333333)),
-              foregroundColor: AppColors.textMuted,
+class _PopupControl extends StatefulWidget {
+  final Widget trigger;
+  final WidgetBuilder popupBuilder;
+
+  const _PopupControl({required this.trigger, required this.popupBuilder});
+
+  @override
+  State<_PopupControl> createState() => _PopupControlState();
+}
+
+class _PopupControlState extends State<_PopupControl> {
+  final _controller = OverlayPortalController();
+  final _link = LayerLink();
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _link,
+      child: OverlayPortal(
+        controller: _controller,
+        overlayChildBuilder: (ctx) => Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _controller.hide,
+              ),
             ),
-            onPressed: () async {
-              final result = await showPttBindingPicker(
-                context: context,
-                currentBindingIds: radio.pttBindingIds,
-                settingsProvider: settingsProvider,
-              );
-              if (result != null) {
-                radioProvider
-                    .updateRadio(radio.copyWith(pttBindingIds: result));
-              }
+            CompositedTransformFollower(
+              link: _link,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.topCenter,
+              followerAnchor: Alignment.bottomCenter,
+              offset: const Offset(0, -4),
+              child: Material(
+                color: const Color(0xFF1A1A1A),
+                elevation: 8,
+                borderRadius: BorderRadius.circular(6),
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: const Color(0xFF333333)),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: widget.popupBuilder(ctx),
+                ),
+              ),
+            ),
+          ],
+        ),
+        child: GestureDetector(
+          onTap: _controller.toggle,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: widget.trigger,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Audio output popup content (volume + pan sliders)
+// ---------------------------------------------------------------------------
+
+class _AudioOutputPopup extends StatefulWidget {
+  final double volume;
+  final double pan;
+  final ValueChanged<double> onVolumeChanged;
+  final ValueChanged<double> onPanChanged;
+
+  const _AudioOutputPopup({
+    required this.volume,
+    required this.pan,
+    required this.onVolumeChanged,
+    required this.onPanChanged,
+  });
+
+  @override
+  State<_AudioOutputPopup> createState() => _AudioOutputPopupState();
+}
+
+class _AudioOutputPopupState extends State<_AudioOutputPopup> {
+  late double _volume;
+  late double _pan;
+
+  @override
+  void initState() {
+    super.initState();
+    _volume = widget.volume;
+    _pan = widget.pan;
+  }
+
+  String get _panLabel {
+    if (_pan.abs() < 0.01) return 'C';
+    if (_pan < 0) return 'L${(-_pan * 100).round()}';
+    return 'R${(_pan * 100).round()}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _sliderRow(
+            label: 'VOL ${(_volume * 100).round()}%',
+            value: _volume,
+            min: 0,
+            max: 1,
+            onChanged: (v) {
+              setState(() => _volume = v);
+              widget.onVolumeChanged(v);
             },
-            child: const Text('KEYS', style: TextStyle(fontSize: 10)),
+          ),
+          _sliderRow(
+            label: 'PAN $_panLabel',
+            value: _pan,
+            min: -1,
+            max: 1,
+            onChanged: (v) {
+              setState(() => _pan = v);
+              widget.onPanChanged(v);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sliderRow({
+    required String label,
+    required double value,
+    required double min,
+    required double max,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 56,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 9, color: AppColors.textMuted),
+          ),
+        ),
+        SizedBox(
+          width: 120,
+          height: 28,
+          child: SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 2,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+            ),
+            child: Slider(value: value, min: min, max: max, onChanged: onChanged),
           ),
         ),
       ],
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Keys pill with tooltip showing bound key labels
+// ---------------------------------------------------------------------------
+
+class _KeysPill extends StatelessWidget {
+  final RadioConfig radio;
+  final List<dynamic> assigned;
+  final RadioProvider radioProvider;
+  final SettingsProvider settingsProvider;
+
+  const _KeysPill({
+    required this.radio,
+    required this.assigned,
+    required this.radioProvider,
+    required this.settingsProvider,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasKeys = assigned.isNotEmpty;
+    final tooltipText = hasKeys
+        ? assigned.map((b) => b.fullKeyLabel).join('   ')
+        : 'No keys assigned';
+
+    return Tooltip(
+      message: tooltipText,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        border: Border.all(color: AppColors.amber.withValues(alpha: 0.4)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      textStyle: const TextStyle(
+        fontSize: 10,
+        color: AppColors.amber,
+        fontFamily: 'Courier New',
+      ),
+      preferBelow: false,
+      child: SizedBox(
+        height: 22,
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            minimumSize: Size.zero,
+            side: BorderSide(
+              color: hasKeys
+                  ? AppColors.amber.withValues(alpha: 0.5)
+                  : const Color(0xFF333333),
+            ),
+            foregroundColor:
+                hasKeys ? AppColors.amber : AppColors.textMuted,
+          ),
+          icon: const Icon(Icons.keyboard_outlined, size: 10),
+          label: const Text('KEYS', style: TextStyle(fontSize: 10)),
+          onPressed: () async {
+            final result = await showPttBindingPicker(
+              context: context,
+              currentBindingIds: radio.pttBindingIds,
+              settingsProvider: settingsProvider,
+            );
+            if (result != null) {
+              radioProvider.updateRadio(radio.copyWith(pttBindingIds: result));
+            }
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Supporting widgets (unchanged)
+// ---------------------------------------------------------------------------
 
 class _AutoTxIndicator extends StatelessWidget {
   final bool txActive;
@@ -429,7 +611,9 @@ class _AutoTxIndicator extends StatelessWidget {
       height: 72,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: txActive ? activeColor.withOpacity(0.15) : const Color(0xFF1A1A1A),
+        color: txActive
+            ? activeColor.withValues(alpha: 0.15)
+            : const Color(0xFF1A1A1A),
         border: Border.all(
           color: txActive ? activeColor : const Color(0xFF444444),
           width: 2,
@@ -439,7 +623,8 @@ class _AutoTxIndicator extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: txActive ? activeColor : AppColors.textMuted, size: 26),
+            Icon(icon,
+                color: txActive ? activeColor : AppColors.textMuted, size: 26),
             Text(
               label,
               style: TextStyle(
@@ -451,6 +636,43 @@ class _AutoTxIndicator extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _LabelledMeter extends StatelessWidget {
+  final String label;
+  final Color labelColor;
+  final Stream<double> levelStream;
+  final double? threshold;
+  final ValueChanged<double>? onThresholdChanged;
+
+  const _LabelledMeter({
+    required this.label,
+    required this.labelColor,
+    required this.levelStream,
+    this.threshold,
+    this.onThresholdChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        LevelMeter(
+          levelStream: levelStream,
+          width: 12,
+          height: 60,
+          threshold: threshold,
+          onThresholdChanged: onThresholdChanged,
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(fontSize: 8, color: labelColor),
+        ),
+      ],
     );
   }
 }
@@ -476,78 +698,6 @@ class _ModBadge extends StatelessWidget {
           fontWeight: FontWeight.bold,
         ),
       ),
-    );
-  }
-}
-
-class _CompactSlider extends StatelessWidget {
-  final double value;
-  final String label;
-  final ValueChanged<double> onChanged;
-
-  const _CompactSlider({
-    required this.value,
-    required this.label,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '$label ${(value * 100).round()}%',
-          style: const TextStyle(
-            fontSize: 8,
-            color: AppColors.textMuted,
-          ),
-        ),
-        SizedBox(
-          height: 20,
-          child: Slider(
-            value: value,
-            onChanged: onChanged,
-            min: 0,
-            max: 1,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PanSlider extends StatelessWidget {
-  final double value;
-  final ValueChanged<double> onChanged;
-
-  const _PanSlider({required this.value, required this.onChanged});
-
-  String get _label {
-    if (value.abs() < 0.01) return 'PAN C';
-    if (value < 0) return 'PAN L${(-value * 100).round()}';
-    return 'PAN R${(value * 100).round()}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          _label,
-          style: const TextStyle(fontSize: 8, color: AppColors.textMuted),
-        ),
-        SizedBox(
-          height: 20,
-          child: Slider(
-            value: value,
-            min: -1,
-            max: 1,
-            onChanged: onChanged,
-          ),
-        ),
-      ],
     );
   }
 }

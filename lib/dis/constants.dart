@@ -20,6 +20,7 @@ class DisConstants {
   static const int defaultPort = 3000;
   static const String defaultMulticastGroup = '239.1.2.3';
   static const String defaultLocalAddress = '0.0.0.0';
+  static const String defaultBroadcastAddress = '255.255.255.255';
 
   // Encoding class (bits 15-14 of encoding scheme) — IEEE 1278.1-2012 Table 32
   static const int encodingClassEncodedAudio = 0;

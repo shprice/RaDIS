@@ -5,7 +5,6 @@ import '../models/app_settings.dart';
 import '../models/app_key_binding.dart';
 import '../providers/settings_provider.dart';
 import '../providers/dis_provider.dart';
-import '../providers/radio_provider.dart';
 import '../dis/constants.dart';
 import '../theme.dart';
 
@@ -43,28 +42,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _formKey.currentState!.save();
     final sp = context.read<SettingsProvider>();
     final dis = context.read<DisProvider>();
-    final rp = context.read<RadioProvider>();
 
-    final old = sp.settings;
     await sp.updateSettings(_settings);
-
-    final networkChanged = old.disLocalAddress != _settings.disLocalAddress ||
-        old.disPort != _settings.disPort ||
-        old.disUseMulticast != _settings.disUseMulticast ||
-        old.disMulticastGroup != _settings.disMulticastGroup ||
-        old.disNetworkInterface != _settings.disNetworkInterface;
-
-    if (networkChanged) {
-      await dis.start(_settings, rp.radios.toList(), rp.intercoms.toList());
-    } else {
-      dis.applySettings(_settings);
-    }
+    dis.applySettings(_settings);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(networkChanged ? 'Network restarted' : 'Settings applied'),
-          backgroundColor: const Color(0xFF2E7D32),
+        const SnackBar(
+          content: Text('Settings applied'),
+          backgroundColor: Color(0xFF2E7D32),
         ),
       );
     }
@@ -199,128 +185,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       )
                     : const Icon(Icons.add, size: 16),
                 label: Text(_capturingBinding ? 'Press a key...' : 'ADD BINDING'),
-              ),
-            ]),
-            _section('DIS NETWORK', [
-              _dropdown<int>(
-                label: 'DIS Protocol Version',
-                value: _settings.disProtocolVersion,
-                items: const [
-                  DropdownMenuItem(
-                      value: 4, child: Text('v4 — IEEE 1278.1-1993')),
-                  DropdownMenuItem(
-                      value: 5, child: Text('v5 — IEEE 1278.1a-1998')),
-                  DropdownMenuItem(
-                      value: 6, child: Text('v6 — IEEE 1278.1-2012')),
-                  DropdownMenuItem(
-                      value: 7, child: Text('v7 — SISO-STD-002.1-2017')),
-                ],
-                onChanged: (v) {
-                  if (v != null) {
-                    _update(_settings.copyWith(disProtocolVersion: v));
-                  }
-                },
-              ),
-              if (_settings.disProtocolVersion < 6)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: const [
-                      Icon(Icons.warning_amber_rounded,
-                          size: 14, color: Colors.orange),
-                      SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          'Intercom PDU types 31/32 are not defined in DIS v4/v5 '
-                          'and will be suppressed.',
-                          style: TextStyle(
-                              fontSize: 11, color: Colors.orange),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              _field(
-                label: 'Local Address',
-                initialValue: _settings.disLocalAddress,
-                hint: '0.0.0.0',
-                onSave: (v) =>
-                    _update(_settings.copyWith(disLocalAddress: v ?? '0.0.0.0')),
-              ),
-              _field(
-                label: 'Port',
-                initialValue: _settings.disPort.toString(),
-                hint: '3000',
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                onSave: (v) => _update(
-                    _settings.copyWith(disPort: int.tryParse(v ?? '') ?? 3000)),
-              ),
-              SwitchListTile(
-                title: const Text('Use Multicast',
-                    style: TextStyle(color: AppColors.text)),
-                subtitle: const Text('DIS multicast networking',
-                    style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                value: _settings.disUseMulticast,
-                activeColor: AppColors.primaryGreen,
-                onChanged: (v) =>
-                    _update(_settings.copyWith(disUseMulticast: v)),
-              ),
-              if (_settings.disUseMulticast)
-                _field(
-                  label: 'Multicast Group',
-                  initialValue: _settings.disMulticastGroup,
-                  hint: '239.1.2.3',
-                  onSave: (v) => _update(
-                      _settings.copyWith(disMulticastGroup: v ?? '239.1.2.3')),
-                ),
-              _field(
-                label: 'Network Interface (optional)',
-                initialValue: _settings.disNetworkInterface ?? '',
-                hint: 'e.g. eth0',
-                onSave: (v) => _update(_settings.copyWith(
-                    disNetworkInterface: v?.isEmpty == true ? null : v)),
-              ),
-            ]),
-            _section('DIS ENTITY', [
-              Row(
-                children: [
-                  Expanded(
-                    child: _field(
-                      label: 'Site ID',
-                      initialValue: _settings.siteId.toString(),
-                      hint: '1',
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      onSave: (v) => _update(
-                          _settings.copyWith(siteId: int.tryParse(v ?? '') ?? 1)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _field(
-                      label: 'Application ID',
-                      initialValue: _settings.applicationId.toString(),
-                      hint: '1',
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      onSave: (v) => _update(_settings.copyWith(
-                          applicationId: int.tryParse(v ?? '') ?? 1)),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _field(
-                      label: 'Exercise ID',
-                      initialValue: _settings.exerciseId.toString(),
-                      hint: '1',
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      onSave: (v) => _update(_settings.copyWith(
-                          exerciseId: int.tryParse(v ?? '') ?? 1)),
-                    ),
-                  ),
-                ],
               ),
             ]),
             _section('AUDIO DEFAULTS', [

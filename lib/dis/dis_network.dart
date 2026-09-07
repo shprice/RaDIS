@@ -14,6 +14,7 @@ class DisNetworkConfig {
   final int port;
   final bool useMulticast;
   final String multicastGroup;
+  final String unicastAddress;
   final String? networkInterface;
 
   const DisNetworkConfig({
@@ -21,30 +22,16 @@ class DisNetworkConfig {
     this.port = DisConstants.defaultPort,
     this.useMulticast = true,
     this.multicastGroup = DisConstants.defaultMulticastGroup,
+    this.unicastAddress = DisConstants.defaultBroadcastAddress,
     this.networkInterface,
   });
-
-  DisNetworkConfig copyWith({
-    String? localAddress,
-    int? port,
-    bool? useMulticast,
-    String? multicastGroup,
-    String? networkInterface,
-  }) {
-    return DisNetworkConfig(
-      localAddress: localAddress ?? this.localAddress,
-      port: port ?? this.port,
-      useMulticast: useMulticast ?? this.useMulticast,
-      multicastGroup: multicastGroup ?? this.multicastGroup,
-      networkInterface: networkInterface ?? this.networkInterface,
-    );
-  }
 
   Map<String, dynamic> toJson() => {
         'localAddress': localAddress,
         'port': port,
         'useMulticast': useMulticast,
         'multicastGroup': multicastGroup,
+        'unicastAddress': unicastAddress,
         'networkInterface': networkInterface,
       };
 
@@ -54,6 +41,7 @@ class DisNetworkConfig {
         port: (json['port'] as num?)?.toInt() ?? DisConstants.defaultPort,
         useMulticast: json['useMulticast'] as bool? ?? true,
         multicastGroup: json['multicastGroup'] as String? ?? DisConstants.defaultMulticastGroup,
+        unicastAddress: json['unicastAddress'] as String? ?? DisConstants.defaultBroadcastAddress,
         networkInterface: json['networkInterface'] as String?,
       );
 }
@@ -132,7 +120,7 @@ class DisNetwork {
     try {
       final dest = _config!.useMulticast
           ? InternetAddress(_config!.multicastGroup)
-          : InternetAddress(_config!.localAddress);
+          : InternetAddress(_config!.unicastAddress);
       _socket!.send(bytes, dest, _config!.port);
       _packetsSent++;
     } catch (e) {

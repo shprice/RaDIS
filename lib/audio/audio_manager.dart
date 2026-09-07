@@ -75,6 +75,7 @@ class AudioManager {
   final Map<String, AudioRecorder> _recorders = {};
   final Map<String, StreamSubscription<Uint8List>> _captureSubscriptions = {};
   final Map<String, _RxBuffer> _rxBuffers = {};
+  final Map<String, StreamController<double>> _rxLevelControllers = {};
 
   // Monotonic counter ensures each loadMem call uses a unique key so
   // flutter_soloud never returns a stale cached AudioSource.
@@ -91,6 +92,10 @@ class AudioManager {
       await stopCapture(id);
     }
     _rxBuffers.clear();
+    for (final c in _rxLevelControllers.values) {
+      c.close();
+    }
+    _rxLevelControllers.clear();
     if (_initialized) {
       SoLoud.instance.deinit();
       _initialized = false;
@@ -278,6 +283,21 @@ class AudioManager {
   Stream<double> inputLevel(String radioId) {
     return _captureSessions[radioId]?.levelController.stream ??
         const Stream.empty();
+  }
+
+  void updateRxLevel(String radioId, double level) {
+    final ctrl = _rxLevelControllers.putIfAbsent(
+      radioId,
+      () => StreamController<double>.broadcast(),
+    );
+    if (!ctrl.isClosed) ctrl.add(level);
+  }
+
+  Stream<double> rxLevel(String radioId) {
+    return (_rxLevelControllers.putIfAbsent(
+      radioId,
+      () => StreamController<double>.broadcast(),
+    )).stream;
   }
 
   double _computeRms(Uint8List pcmData) {

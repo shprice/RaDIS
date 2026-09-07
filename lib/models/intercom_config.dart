@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 import '../dis/entity_id.dart';
 import '../dis/constants.dart';
+import '../dis/dis_network.dart';
 import 'trigger_mode.dart';
 
 TriggerMode _parseTriggerMode(Map<String, dynamic> json) {
@@ -30,6 +31,7 @@ class IntercomConfig {
   TriggerMode triggerMode;
   double voxThreshold;
   Duration voxHangTime;
+  int exerciseId;
   EntityId entityId;
 
   /// DIS sourceCommunicationsDeviceId — identifies this intercom unit (UINT16)
@@ -44,6 +46,15 @@ class IntercomConfig {
 
   int encodingType;
   int sampleRate;
+
+  // Per-intercom DIS network settings
+  String disLocalAddress;
+  int disPort;
+  bool disUseMulticast;
+  String disMulticastGroup;
+  String disUnicastAddress;
+  String? disNetworkInterface;
+  int disProtocolVersion;
 
   bool get voxEnabled => triggerMode == TriggerMode.vox;
   bool get permanentSend => triggerMode == TriggerMode.latchedPtt;
@@ -62,12 +73,20 @@ class IntercomConfig {
     this.triggerMode = TriggerMode.ptt,
     this.voxThreshold = 0.05,
     this.voxHangTime = const Duration(milliseconds: 500),
+    this.exerciseId = 1,
     EntityId? entityId,
     this.communicationsDeviceId = 1,
     this.stationName = 0,
     this.channelType = DisConstants.intercomChannelTypeFdx,
     this.encodingType = DisConstants.encodingMulaw,
     this.sampleRate = DisConstants.sampleRate8kHz,
+    this.disLocalAddress = DisConstants.defaultLocalAddress,
+    this.disPort = DisConstants.defaultPort,
+    this.disUseMulticast = true,
+    this.disMulticastGroup = DisConstants.defaultMulticastGroup,
+    this.disUnicastAddress = DisConstants.defaultBroadcastAddress,
+    this.disNetworkInterface,
+    this.disProtocolVersion = DisConstants.protocolVersionDis6,
   })  : id = id ?? const Uuid().v4(),
         entityId = entityId ?? EntityId.zero(),
         pttBindingIds = pttBindingIds ?? [];
@@ -86,12 +105,20 @@ class IntercomConfig {
         'triggerMode': triggerMode.name,
         'voxThreshold': voxThreshold,
         'voxHangTimeMs': voxHangTime.inMilliseconds,
+        'exerciseId': exerciseId,
         'entityId': entityId.toJson(),
         'communicationsDeviceId': communicationsDeviceId,
         'stationName': stationName,
         'channelType': channelType,
         'encodingType': encodingType,
         'sampleRate': sampleRate,
+        'disLocalAddress': disLocalAddress,
+        'disPort': disPort,
+        'disUseMulticast': disUseMulticast,
+        'disMulticastGroup': disMulticastGroup,
+        'disUnicastAddress': disUnicastAddress,
+        'disNetworkInterface': disNetworkInterface,
+        'disProtocolVersion': disProtocolVersion,
       };
 
   factory IntercomConfig.fromJson(Map<String, dynamic> json) => IntercomConfig(
@@ -113,6 +140,7 @@ class IntercomConfig {
         voxHangTime: Duration(
           milliseconds: (json['voxHangTimeMs'] as num?)?.toInt() ?? 500,
         ),
+        exerciseId: (json['exerciseId'] as num?)?.toInt() ?? 1,
         entityId: json['entityId'] != null
             ? EntityId.fromJson(json['entityId'] as Map<String, dynamic>)
             : EntityId.zero(),
@@ -127,6 +155,22 @@ class IntercomConfig {
             DisConstants.encodingMulaw,
         sampleRate: (json['sampleRate'] as num?)?.toInt() ??
             DisConstants.sampleRate8kHz,
+        disLocalAddress: json['disLocalAddress'] as String? ?? DisConstants.defaultLocalAddress,
+        disPort: (json['disPort'] as num?)?.toInt() ?? DisConstants.defaultPort,
+        disUseMulticast: json['disUseMulticast'] as bool? ?? true,
+        disMulticastGroup: json['disMulticastGroup'] as String? ?? DisConstants.defaultMulticastGroup,
+        disUnicastAddress: json['disUnicastAddress'] as String? ?? DisConstants.defaultBroadcastAddress,
+        disNetworkInterface: json['disNetworkInterface'] as String?,
+        disProtocolVersion: (json['disProtocolVersion'] as num?)?.toInt() ?? DisConstants.protocolVersionDis6,
+      );
+
+  DisNetworkConfig get networkConfig => DisNetworkConfig(
+        localAddress: disLocalAddress,
+        port: disPort,
+        useMulticast: disUseMulticast,
+        multicastGroup: disMulticastGroup,
+        unicastAddress: disUnicastAddress,
+        networkInterface: disNetworkInterface,
       );
 
   IntercomConfig copyWith({
@@ -142,12 +186,20 @@ class IntercomConfig {
     TriggerMode? triggerMode,
     double? voxThreshold,
     Duration? voxHangTime,
+    int? exerciseId,
     EntityId? entityId,
     int? communicationsDeviceId,
     int? stationName,
     int? channelType,
     int? encodingType,
     int? sampleRate,
+    String? disLocalAddress,
+    int? disPort,
+    bool? disUseMulticast,
+    String? disMulticastGroup,
+    String? disUnicastAddress,
+    String? disNetworkInterface,
+    int? disProtocolVersion,
   }) =>
       IntercomConfig(
         id: id,
@@ -163,6 +215,7 @@ class IntercomConfig {
         triggerMode: triggerMode ?? this.triggerMode,
         voxThreshold: voxThreshold ?? this.voxThreshold,
         voxHangTime: voxHangTime ?? this.voxHangTime,
+        exerciseId: exerciseId ?? this.exerciseId,
         entityId: entityId ?? this.entityId,
         communicationsDeviceId:
             communicationsDeviceId ?? this.communicationsDeviceId,
@@ -170,5 +223,12 @@ class IntercomConfig {
         channelType: channelType ?? this.channelType,
         encodingType: encodingType ?? this.encodingType,
         sampleRate: sampleRate ?? this.sampleRate,
+        disLocalAddress: disLocalAddress ?? this.disLocalAddress,
+        disPort: disPort ?? this.disPort,
+        disUseMulticast: disUseMulticast ?? this.disUseMulticast,
+        disMulticastGroup: disMulticastGroup ?? this.disMulticastGroup,
+        disUnicastAddress: disUnicastAddress ?? this.disUnicastAddress,
+        disNetworkInterface: disNetworkInterface ?? this.disNetworkInterface,
+        disProtocolVersion: disProtocolVersion ?? this.disProtocolVersion,
       );
 }

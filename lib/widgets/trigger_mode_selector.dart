@@ -5,35 +5,16 @@ import '../theme.dart';
 class TriggerModeSelector extends StatelessWidget {
   final TriggerMode mode;
   final ValueChanged<TriggerMode> onChanged;
-  final double voxThreshold;
-  final ValueChanged<double>? onVoxThresholdChanged;
 
   const TriggerModeSelector({
     super.key,
     required this.mode,
     required this.onChanged,
-    this.voxThreshold = 0.05,
-    this.onVoxThresholdChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _SegmentedSwitch(
-          selected: mode,
-          onChanged: onChanged,
-        ),
-        if (mode == TriggerMode.vox && onVoxThresholdChanged != null) ...[
-          const SizedBox(height: 4),
-          _VoxSensitivityRow(
-            threshold: voxThreshold,
-            onChanged: onVoxThresholdChanged!,
-          ),
-        ],
-      ],
-    );
+    return _SegmentedSwitch(selected: mode, onChanged: onChanged);
   }
 }
 
@@ -104,59 +85,3 @@ class _SegmentedSwitch extends StatelessWidget {
   }
 }
 
-class _VoxSensitivityRow extends StatelessWidget {
-  final double threshold;
-  final ValueChanged<double> onChanged;
-
-  const _VoxSensitivityRow({
-    required this.threshold,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    // threshold is 0.01..0.5 — invert for "sensitivity" display (high threshold = low sensitivity)
-    final sensitivity = 1.0 - ((threshold - 0.01) / 0.49).clamp(0.0, 1.0);
-
-    return Row(
-      children: [
-        const Text(
-          'SENS',
-          style: TextStyle(
-            fontSize: 8,
-            color: AppColors.primaryGreen,
-          ),
-        ),
-        Expanded(
-          child: SizedBox(
-            height: 20,
-            child: SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                activeTrackColor: AppColors.primaryGreen,
-                inactiveTrackColor: const Color(0xFF1A2A1A),
-                thumbColor: AppColors.primaryGreen,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
-                trackHeight: 2,
-              ),
-              child: Slider(
-                value: sensitivity,
-                onChanged: (v) {
-                  final newThreshold = 0.01 + (1.0 - v) * 0.49;
-                  onChanged(newThreshold);
-                },
-              ),
-            ),
-          ),
-        ),
-        Text(
-          '${(sensitivity * 100).round()}%',
-          style: const TextStyle(
-            fontSize: 8,
-            color: AppColors.primaryGreen,
-          ),
-        ),
-      ],
-    );
-  }
-}

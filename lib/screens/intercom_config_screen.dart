@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -19,11 +20,31 @@ class IntercomConfigScreen extends StatefulWidget {
 
 class _IntercomConfigScreenState extends State<IntercomConfigScreen> {
   late IntercomConfig _intercom;
+  List<_AdapterOption> _adapters = const [
+    _AdapterOption('0.0.0.0', 'Any (0.0.0.0)'),
+  ];
 
   @override
   void initState() {
     super.initState();
     _intercom = widget.intercom;
+    _loadAdapters();
+  }
+
+  Future<void> _loadAdapters() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        includeLoopback: true,
+        type: InternetAddressType.IPv4,
+      );
+      final options = <_AdapterOption>[
+        const _AdapterOption('0.0.0.0', 'Any (0.0.0.0)'),
+        for (final iface in interfaces)
+          for (final addr in iface.addresses)
+            _AdapterOption(addr.address, '${iface.name}  ${addr.address}'),
+      ];
+      if (mounted) setState(() => _adapters = options);
+    } catch (_) {}
   }
 
   void _update(IntercomConfig updated) => setState(() => _intercom = updated);
@@ -71,6 +92,20 @@ class _IntercomConfigScreenState extends State<IntercomConfigScreen> {
           ]),
 
           _Section(title: 'DIS PARAMETERS', children: [
+            _Field(
+              label: 'Exercise ID',
+              child: TextFormField(
+                initialValue: _intercom.exerciseId.toString(),
+                style: _inputStyle,
+                decoration: _inputDec('1'),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (v) {
+                  final n = int.tryParse(v);
+                  if (n != null) _update(_intercom.copyWith(exerciseId: n));
+                },
+              ),
+            ),
             Row(
               children: [
                 Expanded(
@@ -344,6 +379,130 @@ class _IntercomConfigScreenState extends State<IntercomConfigScreen> {
             ),
           ]),
 
+          _Section(title: 'DIS NETWORK', children: [
+            _Field(
+              label: 'DIS Protocol Version',
+              child: DropdownButtonFormField<int>(
+                value: _intercom.disProtocolVersion,
+                dropdownColor: AppColors.surface,
+                style: _inputStyle,
+                decoration: _inputDec(''),
+                items: const [
+                  DropdownMenuItem(value: 4, child: Text('v4 — IEEE 1278.1-1993')),
+                  DropdownMenuItem(value: 5, child: Text('v5 — IEEE 1278.1a-1998')),
+                  DropdownMenuItem(value: 6, child: Text('v6 — IEEE 1278.1-2012')),
+                  DropdownMenuItem(value: 7, child: Text('v7 — SISO-STD-002.1-2017')),
+                ],
+                onChanged: (v) {
+                  if (v != null) _update(_intercom.copyWith(disProtocolVersion: v));
+                },
+              ),
+            ),
+            if (_intercom.disProtocolVersion < 6)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: const [
+                    Icon(Icons.warning_amber_rounded,
+                        size: 13, color: Colors.orange),
+                    SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Intercom PDU types 31/32 are not defined in DIS v4/v5 '
+                        'and will be suppressed.',
+                        style: TextStyle(fontSize: 11, color: Colors.orange),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            _Field(
+              label: 'Local Address',
+              child: DropdownButtonFormField<String>(
+                value: _adapters.any((a) => a.address == _intercom.disLocalAddress)
+                    ? _intercom.disLocalAddress
+                    : '0.0.0.0',
+                dropdownColor: AppColors.surface,
+                style: _inputStyle,
+                decoration: _inputDec(''),
+                items: _adapters
+                    .map((a) => DropdownMenuItem(
+                          value: a.address,
+                          child: Text(a.label, overflow: TextOverflow.ellipsis),
+                        ))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null)
+                    _update(_intercom.copyWith(disLocalAddress: v));
+                },
+              ),
+            ),
+            _Field(
+              label: 'Port',
+              child: TextFormField(
+                initialValue: _intercom.disPort.toString(),
+                style: _inputStyle,
+                decoration: _inputDec('3000'),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (v) {
+                  final p = int.tryParse(v);
+                  if (p != null) _update(_intercom.copyWith(disPort: p));
+                },
+              ),
+            ),
+            SwitchListTile(
+              title: const Text('Use Multicast',
+                  style: TextStyle(color: AppColors.text)),
+              subtitle: const Text('DIS multicast networking',
+                  style:
+                      TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              value: _intercom.disUseMulticast,
+              activeColor: AppColors.primaryGreen,
+              onChanged: (v) =>
+                  _update(_intercom.copyWith(disUseMulticast: v)),
+            ),
+            if (_intercom.disUseMulticast) ...[
+              _Field(
+                label: 'Multicast Group',
+                child: TextFormField(
+                  initialValue: _intercom.disMulticastGroup,
+                  style: _inputStyle,
+                  decoration:
+                      _inputDec(DisConstants.defaultMulticastGroup),
+                  onChanged: (v) {
+                    if (v.isNotEmpty)
+                      _update(_intercom.copyWith(disMulticastGroup: v));
+                  },
+                ),
+              ),
+              _Field(
+                label: 'Network Interface (optional)',
+                child: TextFormField(
+                  initialValue: _intercom.disNetworkInterface ?? '',
+                  style: _inputStyle,
+                  decoration: _inputDec(
+                      'e.g. eth0  (leave blank for default)'),
+                  onChanged: (v) => _update(_intercom.copyWith(
+                      disNetworkInterface: v.isEmpty ? null : v)),
+                ),
+              ),
+            ] else
+              _Field(
+                label: 'Broadcast / Unicast Address',
+                child: TextFormField(
+                  initialValue: _intercom.disUnicastAddress,
+                  style: _inputStyle,
+                  decoration:
+                      _inputDec(DisConstants.defaultBroadcastAddress),
+                  onChanged: (v) {
+                    if (v.isNotEmpty)
+                      _update(_intercom.copyWith(disUnicastAddress: v));
+                  },
+                ),
+              ),
+          ]),
+
           _Section(title: 'ENCODING', children: [
             _Field(
               label: 'Encoding Type',
@@ -548,4 +707,10 @@ class _LabeledSlider extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AdapterOption {
+  final String address;
+  final String label;
+  const _AdapterOption(this.address, this.label);
 }

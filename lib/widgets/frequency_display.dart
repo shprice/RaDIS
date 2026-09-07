@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 
-enum FreqUnit { khz, mhz, ghz }
+enum FreqUnit { hz, khz, mhz, ghz }
 
 extension _FreqUnitExt on FreqUnit {
   String get label {
     switch (this) {
+      case FreqUnit.hz:  return 'Hz';
       case FreqUnit.khz: return 'kHz';
       case FreqUnit.mhz: return 'MHz';
       case FreqUnit.ghz: return 'GHz';
@@ -15,6 +16,7 @@ extension _FreqUnitExt on FreqUnit {
 
   double get divisor {
     switch (this) {
+      case FreqUnit.hz:  return 1.0;
       case FreqUnit.khz: return 1e3;
       case FreqUnit.mhz: return 1e6;
       case FreqUnit.ghz: return 1e9;
@@ -24,6 +26,7 @@ extension _FreqUnitExt on FreqUnit {
   // Tuning step for ▲/▼ and scroll wheel
   double get stepHz {
     switch (this) {
+      case FreqUnit.hz:  return 1;       // 1 Hz
       case FreqUnit.khz: return 1000;    // 1 kHz
       case FreqUnit.mhz: return 25000;   // 25 kHz
       case FreqUnit.ghz: return 1000000; // 1 MHz
@@ -58,7 +61,7 @@ class _FrequencyDisplayState extends State<FrequencyDisplay> {
 
   double get _displayValue => widget.frequency / _unit.divisor;
 
-  String _format(double v) => v.toStringAsFixed(1);
+  String _format(double v) => v.toStringAsFixed(3);
 
   void _adjust(int direction) {
     final hz = (widget.frequency + direction * _unit.stepHz).clamp(0.0, 100e9);
@@ -297,7 +300,7 @@ class _FrequencyKeypadDialogState extends State<_FrequencyKeypadDialog> {
   void initState() {
     super.initState();
     _unit = widget.initialUnit;
-    _input = (widget.initialHz / _unit.divisor).toStringAsFixed(1);
+    _input = (widget.initialHz / _unit.divisor).toStringAsFixed(3);
   }
 
   double? get _parsedHz {
@@ -331,7 +334,7 @@ class _FrequencyKeypadDialogState extends State<_FrequencyKeypadDialog> {
     final hz = _parsedHz;
     setState(() {
       _unit = unit;
-      if (hz != null) _input = (hz / unit.divisor).toStringAsFixed(1);
+      if (hz != null) _input = (hz / unit.divisor).toStringAsFixed(3);
     });
     widget.onUnitChanged(unit);
   }
@@ -392,9 +395,12 @@ class _FrequencyKeypadDialogState extends State<_FrequencyKeypadDialog> {
                   child: GestureDetector(
                     onTap: () => _setUnit(unit),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: active ? const Color(0xFF0A1A0A) : Colors.transparent,
+                        color: active
+                            ? const Color(0xFF0A1A0A)
+                            : Colors.transparent,
                         border: Border.all(
                           color: active ? _kGreen : _kGreenVeryDim,
                         ),
@@ -406,7 +412,8 @@ class _FrequencyKeypadDialogState extends State<_FrequencyKeypadDialog> {
                           fontFamily: 'Courier New',
                           fontSize: 12,
                           color: active ? _kGreen : _kGreenVeryDim,
-                          fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                          fontWeight:
+                              active ? FontWeight.bold : FontWeight.normal,
                         ),
                       ),
                     ),

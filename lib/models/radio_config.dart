@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 import '../dis/entity_id.dart';
 import '../dis/constants.dart';
+import '../dis/dis_network.dart';
 import 'trigger_mode.dart';
 
 TriggerMode _parseTriggerMode(Map<String, dynamic> json) {
@@ -73,8 +74,18 @@ class RadioConfig {
   String? netPlanId;
   int? netChannelIndex;
 
+  int exerciseId;
   EntityId entityId;
   int radioNumber;
+
+  // Per-radio DIS network settings
+  String disLocalAddress;
+  int disPort;
+  bool disUseMulticast;
+  String disMulticastGroup;
+  String disUnicastAddress;
+  String? disNetworkInterface;
+  int disProtocolVersion;
 
   RadioConfig({
     String? id,
@@ -90,7 +101,7 @@ class RadioConfig {
     this.outputDeviceId,
     this.inputGain = 1.0,
     this.outputVolume = 0.8,
-    this.squelch = 0.1,
+    this.squelch = 0.0,
     this.sidetoneVolume = 0.0,
     this.outputPan = 0.0,
     List<String>? pttBindingIds,
@@ -99,8 +110,16 @@ class RadioConfig {
     this.voxHangTime = const Duration(milliseconds: 500),
     this.netPlanId,
     this.netChannelIndex,
+    this.exerciseId = 1,
     EntityId? entityId,
     this.radioNumber = 1,
+    this.disLocalAddress = DisConstants.defaultLocalAddress,
+    this.disPort = DisConstants.defaultPort,
+    this.disUseMulticast = true,
+    this.disMulticastGroup = DisConstants.defaultMulticastGroup,
+    this.disUnicastAddress = DisConstants.defaultBroadcastAddress,
+    this.disNetworkInterface,
+    this.disProtocolVersion = DisConstants.protocolVersionDis6,
   })  : id = id ?? const Uuid().v4(),
         entityId = entityId ?? EntityId.zero(),
         pttBindingIds = pttBindingIds ?? [];
@@ -128,8 +147,16 @@ class RadioConfig {
         'voxHangTimeMs': voxHangTime.inMilliseconds,
         'netPlanId': netPlanId,
         'netChannelIndex': netChannelIndex,
+        'exerciseId': exerciseId,
         'entityId': entityId.toJson(),
         'radioNumber': radioNumber,
+        'disLocalAddress': disLocalAddress,
+        'disPort': disPort,
+        'disUseMulticast': disUseMulticast,
+        'disMulticastGroup': disMulticastGroup,
+        'disUnicastAddress': disUnicastAddress,
+        'disNetworkInterface': disNetworkInterface,
+        'disProtocolVersion': disProtocolVersion,
       };
 
   factory RadioConfig.fromJson(Map<String, dynamic> json) => RadioConfig(
@@ -149,7 +176,7 @@ class RadioConfig {
         outputDeviceId: json['outputDeviceId'] as String?,
         inputGain: (json['inputGain'] as num?)?.toDouble() ?? 1.0,
         outputVolume: (json['outputVolume'] as num?)?.toDouble() ?? 0.8,
-        squelch: (json['squelch'] as num?)?.toDouble() ?? 0.1,
+        squelch: (json['squelch'] as num?)?.toDouble() ?? 0.0,
         sidetoneVolume: (json['sidetoneVolume'] as num?)?.toDouble() ?? 0.0,
         outputPan: (json['outputPan'] as num?)?.toDouble() ?? 0.0,
         pttBindingIds: (json['pttBindingIds'] as List<dynamic>?)
@@ -163,10 +190,27 @@ class RadioConfig {
         ),
         netPlanId: json['netPlanId'] as String?,
         netChannelIndex: (json['netChannelIndex'] as num?)?.toInt(),
+        exerciseId: (json['exerciseId'] as num?)?.toInt() ?? 1,
         entityId: json['entityId'] != null
             ? EntityId.fromJson(json['entityId'] as Map<String, dynamic>)
             : EntityId.zero(),
         radioNumber: (json['radioNumber'] as num?)?.toInt() ?? 1,
+        disLocalAddress: json['disLocalAddress'] as String? ?? DisConstants.defaultLocalAddress,
+        disPort: (json['disPort'] as num?)?.toInt() ?? DisConstants.defaultPort,
+        disUseMulticast: json['disUseMulticast'] as bool? ?? true,
+        disMulticastGroup: json['disMulticastGroup'] as String? ?? DisConstants.defaultMulticastGroup,
+        disUnicastAddress: json['disUnicastAddress'] as String? ?? DisConstants.defaultBroadcastAddress,
+        disNetworkInterface: json['disNetworkInterface'] as String?,
+        disProtocolVersion: (json['disProtocolVersion'] as num?)?.toInt() ?? DisConstants.protocolVersionDis6,
+      );
+
+  DisNetworkConfig get networkConfig => DisNetworkConfig(
+        localAddress: disLocalAddress,
+        port: disPort,
+        useMulticast: disUseMulticast,
+        multicastGroup: disMulticastGroup,
+        unicastAddress: disUnicastAddress,
+        networkInterface: disNetworkInterface,
       );
 
   RadioConfig copyWith({
@@ -191,8 +235,16 @@ class RadioConfig {
     Duration? voxHangTime,
     String? netPlanId,
     int? netChannelIndex,
+    int? exerciseId,
     EntityId? entityId,
     int? radioNumber,
+    String? disLocalAddress,
+    int? disPort,
+    bool? disUseMulticast,
+    String? disMulticastGroup,
+    String? disUnicastAddress,
+    String? disNetworkInterface,
+    int? disProtocolVersion,
   }) =>
       RadioConfig(
         id: id,
@@ -217,7 +269,15 @@ class RadioConfig {
         voxHangTime: voxHangTime ?? this.voxHangTime,
         netPlanId: netPlanId ?? this.netPlanId,
         netChannelIndex: netChannelIndex ?? this.netChannelIndex,
+        exerciseId: exerciseId ?? this.exerciseId,
         entityId: entityId ?? this.entityId,
         radioNumber: radioNumber ?? this.radioNumber,
+        disLocalAddress: disLocalAddress ?? this.disLocalAddress,
+        disPort: disPort ?? this.disPort,
+        disUseMulticast: disUseMulticast ?? this.disUseMulticast,
+        disMulticastGroup: disMulticastGroup ?? this.disMulticastGroup,
+        disUnicastAddress: disUnicastAddress ?? this.disUnicastAddress,
+        disNetworkInterface: disNetworkInterface ?? this.disNetworkInterface,
+        disProtocolVersion: disProtocolVersion ?? this.disProtocolVersion,
       );
 }
