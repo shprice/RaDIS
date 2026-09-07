@@ -78,6 +78,8 @@ class RadioConfig {
   EntityId entityId;
   int radioNumber;
 
+  bool txBeepEnabled;
+
   // Per-radio DIS network settings
   String disLocalAddress;
   int disPort;
@@ -120,6 +122,7 @@ class RadioConfig {
     this.disUnicastAddress = DisConstants.defaultBroadcastAddress,
     this.disNetworkInterface,
     this.disProtocolVersion = DisConstants.protocolVersionDis6,
+    this.txBeepEnabled = true,
   })  : id = id ?? const Uuid().v4(),
         entityId = entityId ?? EntityId.zero(),
         pttBindingIds = pttBindingIds ?? [];
@@ -157,6 +160,7 @@ class RadioConfig {
         'disUnicastAddress': disUnicastAddress,
         'disNetworkInterface': disNetworkInterface,
         'disProtocolVersion': disProtocolVersion,
+        'txBeepEnabled': txBeepEnabled,
       };
 
   factory RadioConfig.fromJson(Map<String, dynamic> json) => RadioConfig(
@@ -202,6 +206,7 @@ class RadioConfig {
         disUnicastAddress: json['disUnicastAddress'] as String? ?? DisConstants.defaultBroadcastAddress,
         disNetworkInterface: json['disNetworkInterface'] as String?,
         disProtocolVersion: (json['disProtocolVersion'] as num?)?.toInt() ?? DisConstants.protocolVersionDis6,
+        txBeepEnabled: json['txBeepEnabled'] as bool? ?? true,
       );
 
   DisNetworkConfig get networkConfig => DisNetworkConfig(
@@ -245,6 +250,7 @@ class RadioConfig {
     String? disUnicastAddress,
     String? disNetworkInterface,
     int? disProtocolVersion,
+    bool? txBeepEnabled,
   }) =>
       RadioConfig(
         id: id,
@@ -279,5 +285,6 @@ class RadioConfig {
         disUnicastAddress: disUnicastAddress ?? this.disUnicastAddress,
         disNetworkInterface: disNetworkInterface ?? this.disNetworkInterface,
         disProtocolVersion: disProtocolVersion ?? this.disProtocolVersion,
+        txBeepEnabled: txBeepEnabled ?? this.txBeepEnabled,
       );
 }

@@ -1,6 +1,8 @@
 import 'package:uuid/uuid.dart';
 import 'radio_config.dart';
 
+const _unset = Object();
+
 class NetChannel {
   final String id;
   String name;
@@ -10,6 +12,7 @@ class NetChannel {
   int cryptoSystem;
   int cryptoKeyId;
   String? description;
+  String? color;
 
   NetChannel({
     String? id,
@@ -20,6 +23,7 @@ class NetChannel {
     this.cryptoSystem = 0,
     this.cryptoKeyId = 0,
     this.description,
+    this.color,
   }) : id = id ?? const Uuid().v4();
 
   Map<String, dynamic> toJson() => {
@@ -31,6 +35,7 @@ class NetChannel {
         'cryptoSystem': cryptoSystem,
         'cryptoKeyId': cryptoKeyId,
         'description': description,
+        'color': color,
       };
 
   factory NetChannel.fromJson(Map<String, dynamic> json) => NetChannel(
@@ -45,6 +50,7 @@ class NetChannel {
         cryptoSystem: (json['cryptoSystem'] as num?)?.toInt() ?? 0,
         cryptoKeyId: (json['cryptoKeyId'] as num?)?.toInt() ?? 0,
         description: json['description'] as String?,
+        color: json['color'] as String?,
       );
 
   NetChannel copyWith({
@@ -55,6 +61,7 @@ class NetChannel {
     int? cryptoSystem,
     int? cryptoKeyId,
     String? description,
+    Object? color = _unset,
   }) =>
       NetChannel(
         id: id,
@@ -65,6 +72,7 @@ class NetChannel {
         cryptoSystem: cryptoSystem ?? this.cryptoSystem,
         cryptoKeyId: cryptoKeyId ?? this.cryptoKeyId,
         description: description ?? this.description,
+        color: color == _unset ? this.color : color as String?,
       );
 }
 

@@ -294,6 +294,7 @@ class DisProvider extends ChangeNotifier {
     _txActive[radioId] = true;
     notifyListeners();
     _sendTransmitterPdu(radio, DisConstants.transmitterStateOnTransmitting);
+    if (radio.txBeepEnabled) AudioManager.instance.playAsset('assets/beep.wav');
 
     if (_autoTxIds.contains(radioId)) return;
 
@@ -338,6 +339,7 @@ class DisProvider extends ChangeNotifier {
     _txActive[intercomId] = true;
     notifyListeners();
     _sendIntercomControlPdu(intercom, transmitting: true);
+    AudioManager.instance.playAsset('assets/beep.wav');
 
     if (_autoTxIds.contains(intercomId)) return;
 
@@ -478,6 +480,7 @@ class DisProvider extends ChangeNotifier {
               ? DisConstants.transmitterStateOnTransmitting
               : DisConstants.transmitterStateOnNotTransmitting,
         );
+        if (shouldTx && radio.txBeepEnabled) AudioManager.instance.playAsset('assets/beep.wav');
         notifyListeners();
       }
       if (!shouldTx) return;
@@ -558,6 +561,7 @@ class DisProvider extends ChangeNotifier {
       if (shouldTx != wasTx) {
         _txActive[intercomId] = shouldTx;
         _sendIntercomControlPdu(intercom, transmitting: shouldTx);
+        if (shouldTx) AudioManager.instance.playAsset('assets/beep.wav');
         notifyListeners();
       }
       if (!shouldTx) return;

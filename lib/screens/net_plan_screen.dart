@@ -31,7 +31,7 @@ class _NetPlanScreenState extends State<NetPlanScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('NET PLANS'),
+        title: const Text('CHANNELS'),
         actions: [
           IconButton(
             icon: const Icon(Icons.upload_file),
@@ -46,7 +46,7 @@ class _NetPlanScreenState extends State<NetPlanScreen> {
             ),
           IconButton(
             icon: const Icon(Icons.add),
-            tooltip: 'New Plan',
+            tooltip: 'New Channel Group',
             onPressed: () {
               rp.addNetPlan();
               setState(() => _selectedPlanId = rp.netPlans.last.id);
@@ -94,7 +94,7 @@ class _NetPlanScreenState extends State<NetPlanScreen> {
                 if (plans.isEmpty)
                   const Padding(
                     padding: EdgeInsets.all(16),
-                    child: Text('No net plans',
+                    child: Text('No channels',
                         style: TextStyle(color: AppColors.textMuted)),
                   ),
               ],
@@ -105,13 +105,14 @@ class _NetPlanScreenState extends State<NetPlanScreen> {
           Expanded(
             child: selected == null
                 ? const Center(
-                    child: Text('Select or create a net plan',
+                    child: Text('Select or create a channel group',
                         style: TextStyle(color: AppColors.textMuted)))
                 : _NetPlanEditor(
                     key: ValueKey(selected.id),
                     plan: selected,
                     onUpdate: rp.updateNetPlan,
                   ),
+
           ),
         ],
       ),
@@ -396,6 +397,11 @@ class _ChannelEditorState extends State<_ChannelEditor> {
           ],
         ),
         const SizedBox(height: 8),
+        _ColorPicker(
+          selected: _ch.color,
+          onChanged: (c) => _update(_ch.copyWith(color: c)),
+        ),
+        const SizedBox(height: 8),
         Row(
           children: [
             Expanded(
@@ -451,6 +457,64 @@ class _ChannelEditorState extends State<_ChannelEditor> {
         border: const OutlineInputBorder(),
       ),
       onChanged: onChanged,
+    );
+  }
+}
+
+class _ColorPicker extends StatelessWidget {
+  final String? selected;
+  final ValueChanged<String?> onChanged;
+
+  const _ColorPicker({required this.selected, required this.onChanged});
+
+  static const _options = <String?, Color>{
+    null: Color(0xFF555555),
+    'red': Color(0xFFEF5350),
+    'orange': Color(0xFFFF9800),
+    'yellow': Color(0xFFFFEE58),
+    'green': Color(0xFF66BB6A),
+    'blue': Color(0xFF42A5F5),
+    'purple': Color(0xFFAB47BC),
+    'white': Color(0xFFEEEEEE),
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Text('Colour',
+            style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+        const SizedBox(width: 12),
+        ..._options.entries.map((e) {
+          final isSelected = e.key == selected;
+          return GestureDetector(
+            onTap: () => onChanged(e.key),
+            child: Container(
+              width: 28,
+              height: 28,
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: e.value,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? Colors.white : Colors.transparent,
+                  width: 2,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                            color: e.value.withValues(alpha: 0.6),
+                            blurRadius: 6)
+                      ]
+                    : null,
+              ),
+              child: isSelected
+                  ? const Icon(Icons.check, size: 14, color: Colors.black54)
+                  : null,
+            ),
+          );
+        }),
+      ],
     );
   }
 }

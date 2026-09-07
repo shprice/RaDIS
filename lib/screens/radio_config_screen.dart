@@ -85,6 +85,14 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
                 onChanged: (v) => _update(_radio.copyWith(name: v)),
               ),
             ),
+            SwitchListTile(
+              title: const Text('TX Beep', style: TextStyle(color: AppColors.text)),
+              subtitle: const Text('Play tone at start of transmission',
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              value: _radio.txBeepEnabled,
+              activeColor: AppColors.primaryGreen,
+              onChanged: (v) => _update(_radio.copyWith(txBeepEnabled: v)),
+            ),
           ]),
 
           _Section(title: 'FREQUENCY', children: [

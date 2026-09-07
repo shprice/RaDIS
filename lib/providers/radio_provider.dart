@@ -131,7 +131,7 @@ class RadioProvider extends ChangeNotifier {
   }
 
   void addNetPlan() {
-    _netPlans.add(NetPlan(name: 'Net Plan ${_netPlans.length + 1}'));
+    _netPlans.add(NetPlan(name: 'Channel ${_netPlans.length + 1}'));
     _saveNetPlans();
     notifyListeners();
   }

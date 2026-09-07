@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/net_plan.dart';
 import '../models/radio_config.dart';
 import '../models/trigger_mode.dart';
 import '../providers/dis_provider.dart';
@@ -60,9 +61,22 @@ class RadioCard extends StatelessWidget {
     );
   }
 
+  NetChannel? _currentChannel(RadioProvider rp) {
+    if (radio.netPlanId == null || radio.netChannelIndex == null) return null;
+    try {
+      final plan = rp.netPlans.firstWhere((p) => p.id == radio.netPlanId);
+      final idx = radio.netChannelIndex!;
+      return idx < plan.channels.length ? plan.channels[idx] : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Widget _buildNetDropdown(BuildContext context, RadioProvider rp) {
     final plans = rp.netPlans;
     final isManual = radio.netPlanId == null || radio.netChannelIndex == null;
+    final currentCh = _currentChannel(rp);
+    final activeColor = _channelDisplayColor(currentCh?.color);
 
     final items = <DropdownMenuItem<String>>[
       DropdownMenuItem(
@@ -74,11 +88,13 @@ class RadioCard extends StatelessWidget {
       ),
       ...plans.expand((plan) => plan.channels.asMap().entries.map((e) {
             final key = '${plan.id}:${e.key}';
+            final ch = e.value;
             return DropdownMenuItem<String>(
               value: key,
               child: Text(
-                e.value.name,
-                style: const TextStyle(fontSize: 12, color: AppColors.amber),
+                ch.name,
+                style: TextStyle(
+                    fontSize: 12, color: _channelDisplayColor(ch.color)),
                 overflow: TextOverflow.ellipsis,
               ),
             );
@@ -96,7 +112,7 @@ class RadioCard extends StatelessWidget {
         border: Border.all(
           color: isManual
               ? const Color(0xFF2E2E2E)
-              : AppColors.amber.withValues(alpha: 0.45),
+              : activeColor.withValues(alpha: 0.45),
         ),
         borderRadius: BorderRadius.circular(4),
       ),
@@ -108,11 +124,11 @@ class RadioCard extends StatelessWidget {
           icon: Icon(
             Icons.arrow_drop_down,
             size: 16,
-            color: isManual ? AppColors.textMuted : AppColors.amber,
+            color: isManual ? AppColors.textMuted : activeColor,
           ),
           style: TextStyle(
             fontSize: 12,
-            color: isManual ? AppColors.textMuted : AppColors.amber,
+            color: isManual ? AppColors.textMuted : activeColor,
           ),
           dropdownColor: const Color(0xFF0D1A0D),
           items: items,
@@ -674,6 +690,27 @@ class _LabelledMeter extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+Color _channelDisplayColor(String? colorName) {
+  switch (colorName) {
+    case 'red':
+      return const Color(0xFFEF5350);
+    case 'orange':
+      return const Color(0xFFFF9800);
+    case 'yellow':
+      return const Color(0xFFFFEE58);
+    case 'green':
+      return const Color(0xFF66BB6A);
+    case 'blue':
+      return const Color(0xFF42A5F5);
+    case 'purple':
+      return const Color(0xFFAB47BC);
+    case 'white':
+      return const Color(0xFFEEEEEE);
+    default:
+      return AppColors.amber;
   }
 }
 

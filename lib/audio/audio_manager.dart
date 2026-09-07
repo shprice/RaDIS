@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 import 'package:record/record.dart';
 import 'audio_device_model.dart';
@@ -277,6 +278,18 @@ class AudioManager {
       final source = await SoLoud.instance.loadMem(key, wavBytes,
           autoDispose: true);
       SoLoud.instance.play(source, volume: volume, pan: pan);
+    } catch (_) {}
+  }
+
+  /// Load and play a Flutter asset file (e.g. a WAV sound effect).
+  Future<void> playAsset(String assetPath) async {
+    _ensureInitialized();
+    try {
+      final data = await rootBundle.load(assetPath);
+      final bytes = data.buffer.asUint8List();
+      final key = 'asset_${assetPath}_${_chunkSeq++}';
+      final source = await SoLoud.instance.loadMem(key, bytes, autoDispose: true);
+      SoLoud.instance.play(source);
     } catch (_) {}
   }
 

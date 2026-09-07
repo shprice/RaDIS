@@ -246,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
         NavigationRailDestination(
           icon: Icon(Icons.list_alt),
           selectedIcon: Icon(Icons.list_alt),
-          label: Text('Net Plans'),
+          label: Text('Channels'),
         ),
         NavigationRailDestination(
           icon: Icon(Icons.headset),
@@ -383,7 +383,7 @@ class _RadiosPanel extends StatelessWidget {
                   title: const Text('Import Configuration'),
                   content: const Text(
                       'This will replace all current radios, intercoms and '
-                      'net plans. Audio device assignments will not be '
+                      'channels. Audio device assignments will not be '
                       'imported.\n\nContinue?'),
                   actions: [
                     TextButton(
