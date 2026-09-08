@@ -9,6 +9,7 @@ import '../dis/signal_pdu.dart';
 import '../dis/receiver_pdu.dart';
 import '../dis/intercom_signal_pdu.dart';
 import '../dis/intercom_control_pdu.dart';
+import '../dis/entity_state_pdu.dart';
 import '../audio/audio_manager.dart';
 import '../audio/g711_codec.dart';
 import '../audio/vox_detector.dart';
@@ -16,6 +17,23 @@ import '../models/radio_config.dart';
 import '../models/intercom_config.dart';
 import '../models/app_settings.dart';
 import '../models/trigger_mode.dart';
+
+class SeenEntity {
+  final EntityId id;
+  final int forceId;
+  final String marking;
+  final DateTime lastSeen;
+
+  const SeenEntity({
+    required this.id,
+    required this.forceId,
+    required this.marking,
+    required this.lastSeen,
+  });
+
+  String get displayLabel => marking.isNotEmpty ? marking.trim() : '';
+  String get idLabel => '${id.siteId}:${id.applicationId}:${id.entityNumber}';
+}
 
 class RadioRxState {
   final bool rxActive;
@@ -54,6 +72,8 @@ class DisProvider extends ChangeNotifier {
   final Map<String, VoxDetector> _voxDetectors = {};
   final Set<String> _autoTxIds = {};
   final Map<String, Timer> _rxTimeouts = {};
+  final Set<String> _repeaterTxActive = {};
+  final Map<String, Timer> _repeaterTxTimeouts = {};
   final Map<String, CvsdDecoder> _cvsdDecoders = {};
   final Map<String, CvsdEncoder> _cvsdEncoders = {};
   final Set<String> _intercomInitialized = {};
@@ -66,6 +86,8 @@ class DisProvider extends ChangeNotifier {
   List<RadioConfig> _radios = [];
   List<IntercomConfig> _intercoms = [];
   final Map<String, bool> _mutedRadios = {};
+  final Map<String, bool> _mutedIntercoms = {};
+  final Map<EntityId, SeenEntity> _seenEntities = {};
   Timer? _heartbeatTimer;
 
   int _packetsRx = 0;
@@ -77,10 +99,23 @@ class DisProvider extends ChangeNotifier {
   int get packetsTx => _packetsTx;
   Map<String, RadioRxState> get rxStates => Map.unmodifiable(_rxStates);
 
-  bool isTxActive(String radioId) => _txActive[radioId] ?? false;
+  List<SeenEntity> get seenEntities {
+    final list = _seenEntities.values.toList()
+      ..sort((a, b) => a.idLabel.compareTo(b.idLabel));
+    return list;
+  }
+
+  bool isTxActive(String radioId) =>
+      (_txActive[radioId] ?? false) || _repeaterTxActive.contains(radioId);
   bool isRadioMuted(String id) => _mutedRadios[id] ?? false;
   void toggleRadioMute(String id) {
     _mutedRadios[id] = !isRadioMuted(id);
+    notifyListeners();
+  }
+
+  bool isIntercomMuted(String id) => _mutedIntercoms[id] ?? false;
+  void toggleIntercomMute(String id) {
+    _mutedIntercoms[id] = !isIntercomMuted(id);
     notifyListeners();
   }
 
@@ -124,6 +159,9 @@ class DisProvider extends ChangeNotifier {
     _heartbeatTimer = null;
     for (final t in _rxTimeouts.values) t.cancel();
     _rxTimeouts.clear();
+    for (final t in _repeaterTxTimeouts.values) t.cancel();
+    _repeaterTxTimeouts.clear();
+    _repeaterTxActive.clear();
     for (final vox in _voxDetectors.values) vox.dispose();
     _voxDetectors.clear();
     _autoTxIds.clear();
@@ -150,6 +188,7 @@ class DisProvider extends ChangeNotifier {
     _intercomNetworks.clear();
     _intercomInitialized.clear();
 
+    _seenEntities.clear();
     _connected = false;
     notifyListeners();
   }
@@ -645,7 +684,7 @@ class DisProvider extends ChangeNotifier {
       entityId: radio.entityId,
       radioId: radio.radioNumber,
       transmitState: state,
-      frequency: radio.frequency.toInt(),
+      frequency: radio.effectiveTxFrequency.toInt(),
       modulationType: modType,
       power: radio.powerWatts,
       transmitFrequencyBandwidth: radio.bandwidth.toFloat(),
@@ -716,11 +755,15 @@ class DisProvider extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   void _handlePduForRadio(dynamic pdu, String radioId) {
-    _packetsRx++;
+    if (pdu is EntityStatePdu) {
+      _trackSeenEntity(pdu.entityId, forceId: pdu.forceId, marking: pdu.marking);
+      return;
+    }
     final radio = _findRadio(radioId);
     if (radio == null || !radio.enabled) return;
 
     if (pdu is SignalPdu) {
+      _packetsRx++;
       _handleSignalPduForRadio(pdu, radio);
     } else if (pdu is dis.TransmitterPdu) {
       _handleTransmitterPduForRadio(pdu, radio);
@@ -769,6 +812,10 @@ class DisProvider extends ChangeNotifier {
 
     _setRxActive(radio.id, true, pdu.entityId, pdu.radioId);
 
+    if (radio.repeaterActive && _txActive[radio.id] != true) {
+      _repeatSignal(radio, pcmBytes, pdu.sampleRate);
+    }
+
     if (isRadioMuted(radio.id)) return;
 
     final volumed = _applyGain(pcmBytes, radio.outputVolume);
@@ -791,6 +838,7 @@ class DisProvider extends ChangeNotifier {
     final senderKey =
         '${pdu.entityId.siteId}_${pdu.entityId.applicationId}_${pdu.entityId.entityNumber}_${pdu.radioId}';
     _remoteTransmitterFreqs[senderKey] = pdu.frequency;
+    _trackSeenEntity(pdu.entityId);
 
     if ((radio.frequency - pdu.frequency).abs() < radio.bandwidth / 2) {
       if (pdu.transmitState == DisConstants.transmitterStateOnTransmitting) {
@@ -811,8 +859,8 @@ class DisProvider extends ChangeNotifier {
   }
 
   void _handlePduForIntercom(dynamic pdu, String intercomId) {
-    _packetsRx++;
     if (pdu is IntercomSignalPdu) {
+      _packetsRx++;
       _handleIntercomSignalPduForIntercom(pdu, intercomId);
     }
   }
@@ -822,7 +870,9 @@ class DisProvider extends ChangeNotifier {
     final intercom = _findIntercom(intercomId);
     if (intercom == null) return;
 
-    if (pdu.entityId == intercom.entityId) return;
+    // Receive only from same entity/platform with a different station (not self)
+    if (pdu.entityId != intercom.entityId ||
+        pdu.communicationsDeviceId == intercom.communicationsDeviceId) return;
 
     Uint8List pcmBytes;
     final et = pdu.encodingType;
@@ -843,19 +893,80 @@ class DisProvider extends ChangeNotifier {
       pcmBytes = pdu.data;
     }
 
+    final rms = _rmsOfPcm(pcmBytes);
+    AudioManager.instance.updateRxLevel(intercom.id, rms);
+
+    _setRxActive(intercom.id, true, pdu.entityId, pdu.communicationsDeviceId);
+
+    if (isIntercomMuted(intercom.id)) return;
+
     AudioManager.instance.playAudio(
       intercom.id,
       pcmBytes,
       pdu.sampleRate,
       pan: intercom.outputPan,
     );
-    _setRxActive(
-        intercom.id, true, pdu.entityId, pdu.communicationsDeviceId);
   }
 
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
+
+  void _trackSeenEntity(EntityId id, {int forceId = 0, String marking = ''}) {
+    final existing = _seenEntities[id];
+    _seenEntities[id] = SeenEntity(
+      id: id,
+      forceId: forceId != 0 ? forceId : (existing?.forceId ?? 0),
+      marking: marking.isNotEmpty ? marking : (existing?.marking ?? ''),
+      lastSeen: DateTime.now(),
+    );
+    notifyListeners();
+  }
+
+  void _repeatSignal(RadioConfig radio, Uint8List pcmBytes, int sampleRate) {
+    final encodingType = _settings?.defaultEncodingType ?? DisConstants.encodingMulaw;
+    final Uint8List encoded;
+    final int sampleCount;
+
+    if (encodingType == DisConstants.encodingAlaw) {
+      final pcmSamples = G711Codec.bytesToInt16(pcmBytes);
+      encoded = G711Codec.encodeAlaw(pcmSamples);
+      sampleCount = encoded.length;
+    } else if (encodingType == DisConstants.encodingLinear16) {
+      encoded = _swapBytes16(pcmBytes);
+      sampleCount = encoded.length ~/ 2;
+    } else if (encodingType == DisConstants.encodingLinear8) {
+      encoded = _signed16ToUnsigned8(pcmBytes);
+      sampleCount = encoded.length;
+    } else {
+      final pcmSamples = G711Codec.bytesToInt16(pcmBytes);
+      encoded = G711Codec.encodeMulaw(pcmSamples);
+      sampleCount = encoded.length;
+    }
+
+    final signalPdu = SignalPdu(
+      entityId: radio.entityId,
+      radioId: radio.radioNumber,
+      encodingScheme: SignalPdu.buildEncodingScheme(
+          DisConstants.encodingClassEncodedAudio, encodingType),
+      sampleRate: sampleRate,
+      dataLengthBits: encoded.length * 8,
+      samples: sampleCount,
+      data: encoded,
+      exerciseId: radio.exerciseId,
+      protocolVersion: radio.disProtocolVersion,
+    );
+    _radioNetworks[radio.id]?.sendSignal(signalPdu);
+    _packetsTx++;
+
+    _repeaterTxActive.add(radio.id);
+    _repeaterTxTimeouts[radio.id]?.cancel();
+    _repeaterTxTimeouts[radio.id] = Timer(const Duration(milliseconds: 600), () {
+      _repeaterTxActive.remove(radio.id);
+      notifyListeners();
+    });
+    notifyListeners();
+  }
 
   void _setRxActive(
       String radioId, bool active, EntityId? entity, int? radioNum) {

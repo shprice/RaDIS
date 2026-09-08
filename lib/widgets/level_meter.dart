@@ -7,6 +7,8 @@ class LevelMeter extends StatefulWidget {
   final bool horizontal;
   final double? threshold;
   final ValueChanged<double>? onThresholdChanged;
+  final Color? barColorOverride;
+  final bool mutedOverlay;
 
   const LevelMeter({
     super.key,
@@ -16,6 +18,8 @@ class LevelMeter extends StatefulWidget {
     this.horizontal = false,
     this.threshold,
     this.onThresholdChanged,
+    this.barColorOverride,
+    this.mutedOverlay = false,
   });
 
   @override
@@ -39,7 +43,9 @@ class _LevelMeterState extends State<LevelMeter> {
         _level = snapshot.data ?? 0;
         final painter = CustomPaint(
           size: Size(widget.width, widget.height),
-          painter: _LevelMeterPainter(_level, widget.horizontal, widget.threshold),
+          painter: _LevelMeterPainter(
+              _level, widget.horizontal, widget.threshold,
+              widget.barColorOverride, widget.mutedOverlay),
         );
 
         if (widget.onThresholdChanged != null) {
@@ -67,8 +73,11 @@ class _LevelMeterPainter extends CustomPainter {
   final double level;
   final bool horizontal;
   final double? threshold;
+  final Color? barColorOverride;
+  final bool mutedOverlay;
 
-  _LevelMeterPainter(this.level, this.horizontal, this.threshold);
+  _LevelMeterPainter(this.level, this.horizontal, this.threshold,
+      this.barColorOverride, this.mutedOverlay);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -81,7 +90,9 @@ class _LevelMeterPainter extends CustomPainter {
           : (size.height * level).clamp(0, size.height);
 
       Color barColor;
-      if (level < 0.6) {
+      if (barColorOverride != null) {
+        barColor = barColorOverride!;
+      } else if (level < 0.6) {
         barColor = const Color(0xFF4CAF50);
       } else if (level < 0.85) {
         barColor = const Color(0xFFFFB300);
@@ -134,9 +145,19 @@ class _LevelMeterPainter extends CustomPainter {
       Rect.fromLTWH(0, 0, size.width, size.height),
       borderPaint,
     );
+
+    if (mutedOverlay) {
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Paint()..color = const Color(0x66FF1744),
+      );
+    }
   }
 
   @override
   bool shouldRepaint(_LevelMeterPainter old) =>
-      old.level != level || old.threshold != threshold;
+      old.level != level ||
+      old.threshold != threshold ||
+      old.barColorOverride != barColorOverride ||
+      old.mutedOverlay != mutedOverlay;
 }

@@ -4,6 +4,8 @@ import '../dis/constants.dart';
 import '../dis/dis_network.dart';
 import 'trigger_mode.dart';
 
+const _unset = Object();
+
 TriggerMode _parseTriggerMode(Map<String, dynamic> json) {
   final name = json['triggerMode'] as String?;
   if (name != null) {
@@ -80,6 +82,18 @@ class RadioConfig {
 
   bool txBeepEnabled;
 
+  bool splitEnabled;
+  double txFrequency;
+  String? txNetPlanId;
+  int? txNetChannelIndex;
+  bool repeaterEnabled;
+
+  String? radioChannelId;
+  String? txRadioChannelId;
+
+  double get effectiveTxFrequency => splitEnabled ? txFrequency : frequency;
+  bool get repeaterActive => splitEnabled && repeaterEnabled;
+
   // Per-radio DIS network settings
   String disLocalAddress;
   int disPort;
@@ -123,9 +137,17 @@ class RadioConfig {
     this.disNetworkInterface,
     this.disProtocolVersion = DisConstants.protocolVersionDis6,
     this.txBeepEnabled = true,
+    this.splitEnabled = false,
+    double? txFrequency,
+    this.txNetPlanId,
+    this.txNetChannelIndex,
+    this.repeaterEnabled = false,
+    this.radioChannelId,
+    this.txRadioChannelId,
   })  : id = id ?? const Uuid().v4(),
         entityId = entityId ?? EntityId.zero(),
-        pttBindingIds = pttBindingIds ?? [];
+        pttBindingIds = pttBindingIds ?? [],
+        txFrequency = txFrequency ?? frequency;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -161,6 +183,13 @@ class RadioConfig {
         'disNetworkInterface': disNetworkInterface,
         'disProtocolVersion': disProtocolVersion,
         'txBeepEnabled': txBeepEnabled,
+        'splitEnabled': splitEnabled,
+        'txFrequency': txFrequency,
+        'txNetPlanId': txNetPlanId,
+        'txNetChannelIndex': txNetChannelIndex,
+        'repeaterEnabled': repeaterEnabled,
+        'radioChannelId': radioChannelId,
+        'txRadioChannelId': txRadioChannelId,
       };
 
   factory RadioConfig.fromJson(Map<String, dynamic> json) => RadioConfig(
@@ -207,6 +236,13 @@ class RadioConfig {
         disNetworkInterface: json['disNetworkInterface'] as String?,
         disProtocolVersion: (json['disProtocolVersion'] as num?)?.toInt() ?? DisConstants.protocolVersionDis6,
         txBeepEnabled: json['txBeepEnabled'] as bool? ?? true,
+        splitEnabled: json['splitEnabled'] as bool? ?? false,
+        txFrequency: (json['txFrequency'] as num?)?.toDouble(),
+        txNetPlanId: json['txNetPlanId'] as String?,
+        txNetChannelIndex: (json['txNetChannelIndex'] as num?)?.toInt(),
+        repeaterEnabled: json['repeaterEnabled'] as bool? ?? false,
+        radioChannelId: json['radioChannelId'] as String?,
+        txRadioChannelId: json['txRadioChannelId'] as String?,
       );
 
   DisNetworkConfig get networkConfig => DisNetworkConfig(
@@ -251,6 +287,13 @@ class RadioConfig {
     String? disNetworkInterface,
     int? disProtocolVersion,
     bool? txBeepEnabled,
+    bool? splitEnabled,
+    double? txFrequency,
+    String? txNetPlanId,
+    int? txNetChannelIndex,
+    bool? repeaterEnabled,
+    Object? radioChannelId = _unset,
+    Object? txRadioChannelId = _unset,
   }) =>
       RadioConfig(
         id: id,
@@ -286,5 +329,16 @@ class RadioConfig {
         disNetworkInterface: disNetworkInterface ?? this.disNetworkInterface,
         disProtocolVersion: disProtocolVersion ?? this.disProtocolVersion,
         txBeepEnabled: txBeepEnabled ?? this.txBeepEnabled,
+        splitEnabled: splitEnabled ?? this.splitEnabled,
+        txFrequency: txFrequency ?? this.txFrequency,
+        txNetPlanId: txNetPlanId ?? this.txNetPlanId,
+        txNetChannelIndex: txNetChannelIndex ?? this.txNetChannelIndex,
+        repeaterEnabled: repeaterEnabled ?? this.repeaterEnabled,
+        radioChannelId: radioChannelId == _unset
+            ? this.radioChannelId
+            : radioChannelId as String?,
+        txRadioChannelId: txRadioChannelId == _unset
+            ? this.txRadioChannelId
+            : txRadioChannelId as String?,
       );
 }

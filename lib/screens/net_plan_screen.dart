@@ -1,33 +1,36 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
 import '../models/net_plan.dart';
 import '../models/radio_config.dart';
 import '../providers/radio_provider.dart';
 import '../theme.dart';
 
-class NetPlanScreen extends StatefulWidget {
+class NetPlanScreen extends StatelessWidget {
   const NetPlanScreen({super.key});
 
-  @override
-  State<NetPlanScreen> createState() => _NetPlanScreenState();
-}
+  Future<void> _export(BuildContext context) async {
+    final rp = context.read<RadioProvider>();
+    final err = await rp.exportChannelsToFile();
+    if (err != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Export failed: $err'), backgroundColor: Colors.red),
+      );
+    }
+  }
 
-class _NetPlanScreenState extends State<NetPlanScreen> {
-  String? _selectedPlanId;
+  Future<void> _import(BuildContext context) async {
+    final rp = context.read<RadioProvider>();
+    final err = await rp.importChannelsFromFile();
+    if (err != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Import failed: $err'), backgroundColor: Colors.red),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final rp = context.watch<RadioProvider>();
-    final plans = rp.netPlans;
-    NetPlan? selected;
-    try {
-      selected = plans.firstWhere((p) => p.id == _selectedPlanId);
-    } catch (_) {
-      selected = plans.isNotEmpty ? plans.first : null;
-    }
 
     return Scaffold(
       appBar: AppBar(
@@ -35,227 +38,74 @@ class _NetPlanScreenState extends State<NetPlanScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.upload_file),
-            tooltip: 'Import',
-            onPressed: _importPlan,
+            tooltip: 'Import channels',
+            onPressed: () => _import(context),
           ),
-          if (selected != null)
-            IconButton(
-              icon: const Icon(Icons.download),
-              tooltip: 'Export',
-              onPressed: () => _exportPlan(selected!),
-            ),
           IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'New Channel Group',
-            onPressed: () {
-              rp.addNetPlan();
-              setState(() => _selectedPlanId = rp.netPlans.last.id);
-            },
+            icon: const Icon(Icons.download),
+            tooltip: 'Export channels',
+            onPressed: () => _export(context),
           ),
         ],
       ),
-      body: Row(
+      body: ListView(
+        padding: const EdgeInsets.all(16),
         children: [
-          // Left: plan list
-          SizedBox(
-            width: 200,
-            child: Column(
-              children: [
-                Expanded(
-                  child: ListView.builder(
-                    itemCount: plans.length,
-                    itemBuilder: (context, i) {
-                      final plan = plans[i];
-                      final isSelected = plan.id == (selected?.id);
-                      return ListTile(
-                        selected: isSelected,
-                        selectedColor: AppColors.primaryGreen,
-                        title: Text(plan.name,
-                            style: const TextStyle(
-                                fontSize: 13)),
-                        subtitle: Text('${plan.channels.length} channels',
-                            style: const TextStyle(
-                                fontSize: 10, color: AppColors.textMuted)),
-                        onTap: () => setState(() => _selectedPlanId = plan.id),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 16),
-                          color: AppColors.textMuted,
-                          onPressed: () {
-                            rp.removeNetPlan(plan.id);
-                            if (_selectedPlanId == plan.id) {
-                              setState(() => _selectedPlanId = null);
-                            }
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                if (plans.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text('No channels',
-                        style: TextStyle(color: AppColors.textMuted)),
-                  ),
-              ],
+          _SectionHeader(
+            label: 'RADIO CHANNELS',
+            onAdd: rp.addRadioChannel,
+          ),
+          const SizedBox(height: 8),
+          ...rp.radioChannels.asMap().entries.map((e) => _ChannelTile(
+                key: ValueKey(e.value.id),
+                channel: e.value,
+                index: e.key,
+                onUpdate: rp.updateRadioChannel,
+                onDelete: () => rp.removeRadioChannel(e.value.id),
+              )),
+          if (rp.radioChannels.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Text('No radio channels',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
             ),
-          ),
-          const VerticalDivider(width: 1),
-          // Right: plan editor
-          Expanded(
-            child: selected == null
-                ? const Center(
-                    child: Text('Select or create a channel group',
-                        style: TextStyle(color: AppColors.textMuted)))
-                : _NetPlanEditor(
-                    key: ValueKey(selected.id),
-                    plan: selected,
-                    onUpdate: rp.updateNetPlan,
-                  ),
-
-          ),
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
-
-  Future<void> _importPlan() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-    );
-    if (result != null && result.files.single.path != null) {
-      try {
-        final content = await File(result.files.single.path!).readAsString();
-        final json = jsonDecode(content) as Map<String, dynamic>;
-        final plan = NetPlan.fromJson(json);
-        context.read<RadioProvider>().importNetPlan(plan);
-        setState(() => _selectedPlanId = plan.id);
-      } catch (e) {
-        _showError('Import failed: $e');
-      }
-    }
-  }
-
-  Future<void> _exportPlan(NetPlan plan) async {
-    final path = await FilePicker.platform.saveFile(
-      dialogTitle: 'Export Net Plan',
-      fileName: '${plan.name.replaceAll(' ', '_')}.json',
-      allowedExtensions: ['json'],
-    );
-    if (path != null) {
-      try {
-        final json = jsonEncode(plan.toJson());
-        await File(path).writeAsString(json);
-      } catch (e) {
-        _showError('Export failed: $e');
-      }
-    }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.red),
-    );
-  }
 }
 
-class _NetPlanEditor extends StatefulWidget {
-  final NetPlan plan;
-  final Function(NetPlan) onUpdate;
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  final VoidCallback onAdd;
 
-  const _NetPlanEditor({super.key, required this.plan, required this.onUpdate});
-
-  @override
-  State<_NetPlanEditor> createState() => _NetPlanEditorState();
-}
-
-class _NetPlanEditorState extends State<_NetPlanEditor> {
-  late NetPlan _plan;
-
-  @override
-  void initState() {
-    super.initState();
-    _plan = widget.plan;
-  }
-
-  void _save() => widget.onUpdate(_plan);
+  const _SectionHeader({required this.label, required this.onAdd});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.add),
-              label: const Text('Add Channel'),
-              onPressed: _addChannel,
-            ),
+    return Row(
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 11, letterSpacing: 3, color: AppColors.textMuted)),
+        const Spacer(),
+        TextButton.icon(
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('ADD', style: TextStyle(fontSize: 11)),
+          style: TextButton.styleFrom(
+            foregroundColor: AppColors.primaryGreen,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
           ),
-          const SizedBox(height: 16),
-          const Text('CHANNELS',
-              style: TextStyle(
-                  fontSize: 11,
-                  letterSpacing: 3,
-                  color: AppColors.textMuted)),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView.builder(
-              itemCount: _plan.channels.length,
-              itemBuilder: (context, i) {
-                final ch = _plan.channels[i];
-                return _ChannelTile(
-                  channel: ch,
-                  index: i,
-                  onUpdate: (updated) {
-                    final newChannels = List<NetChannel>.from(_plan.channels);
-                    newChannels[i] = updated;
-                    setState(() => _plan = NetPlan(
-                          id: _plan.id,
-                          name: _plan.name,
-                          description: _plan.description,
-                          channels: newChannels,
-                        ));
-                    _save();
-                  },
-                  onDelete: () {
-                    final newChannels = List<NetChannel>.from(_plan.channels)
-                      ..removeAt(i);
-                    setState(() => _plan = NetPlan(
-                          id: _plan.id,
-                          name: _plan.name,
-                          description: _plan.description,
-                          channels: newChannels,
-                        ));
-                    _save();
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
+          onPressed: onAdd,
+        ),
+      ],
     );
-  }
-
-  void _addChannel() {
-    final newCh = NetChannel(
-      name: 'CH${_plan.channels.length + 1}',
-      frequency: 225000000,
-    );
-    setState(() => _plan = NetPlan(
-          id: _plan.id,
-          name: _plan.name,
-          description: _plan.description,
-          channels: [..._plan.channels, newCh],
-        ));
-    _save();
   }
 }
+
+// ---------------------------------------------------------------------------
+// Radio channel tile + editor
 
 class _ChannelTile extends StatelessWidget {
   final NetChannel channel;
@@ -264,6 +114,7 @@ class _ChannelTile extends StatelessWidget {
   final VoidCallback onDelete;
 
   const _ChannelTile({
+    super.key,
     required this.channel,
     required this.index,
     required this.onUpdate,
@@ -295,25 +146,17 @@ class _ChannelTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Text(
-              channel.name,
-              style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.text),
-            ),
+            Text(channel.name,
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: AppColors.text)),
             const SizedBox(width: 12),
             Text(
               '${(channel.frequency / 1e6).toStringAsFixed(3)} MHz',
-              style: const TextStyle(
-                  color: Color(0xFF39FF14),
-                  fontSize: 12),
+              style: const TextStyle(color: Color(0xFF39FF14), fontSize: 12),
             ),
             const SizedBox(width: 8),
-            Text(
-              channel.modulationType.displayName,
-              style: const TextStyle(
-                  fontSize: 10, color: AppColors.amber),
-            ),
+            Text(channel.modulationType.displayName,
+                style: const TextStyle(fontSize: 10, color: AppColors.amber)),
           ],
         ),
         trailing: IconButton(
@@ -322,7 +165,7 @@ class _ChannelTile extends StatelessWidget {
         ),
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: _ChannelEditor(channel: channel, onUpdate: onUpdate),
           ),
         ],
@@ -362,12 +205,12 @@ class _ChannelEditorState extends State<_ChannelEditor> {
         Row(
           children: [
             Expanded(
-              child: _smallField('Name', _ch.name, (v) => _update(_ch.copyWith(name: v))),
+              child: _field('Name', _ch.name,
+                  (v) => _update(_ch.copyWith(name: v))),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _smallField('Frequency (Hz)',
-                  _ch.frequency.toStringAsFixed(0), (v) {
+              child: _field('Frequency (Hz)', _ch.frequency.toStringAsFixed(0), (v) {
                 final hz = double.tryParse(v);
                 if (hz != null) _update(_ch.copyWith(frequency: hz));
               }),
@@ -381,13 +224,9 @@ class _ChannelEditorState extends State<_ChannelEditor> {
                     labelText: 'Modulation',
                     isDense: true,
                     border: OutlineInputBorder()),
-                style: const TextStyle(
-                    color: AppColors.text, fontSize: 12),
+                style: const TextStyle(color: AppColors.text, fontSize: 12),
                 items: RadioModulationType.values
-                    .map((m) => DropdownMenuItem(
-                          value: m,
-                          child: Text(m.displayName),
-                        ))
+                    .map((m) => DropdownMenuItem(value: m, child: Text(m.displayName)))
                     .toList(),
                 onChanged: (v) {
                   if (v != null) _update(_ch.copyWith(modulationType: v));
@@ -412,8 +251,7 @@ class _ChannelEditorState extends State<_ChannelEditor> {
                     labelText: 'Crypto',
                     isDense: true,
                     border: OutlineInputBorder()),
-                style: const TextStyle(
-                    color: AppColors.text, fontSize: 12),
+                style: const TextStyle(color: AppColors.text, fontSize: 12),
                 items: const [
                   DropdownMenuItem(value: 0, child: Text('NONE')),
                   DropdownMenuItem(value: 1, child: Text('KY-28')),
@@ -428,15 +266,14 @@ class _ChannelEditorState extends State<_ChannelEditor> {
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _smallField(
-                  'Crypto Key ID', _ch.cryptoKeyId.toString(), (v) {
+              child: _field('Crypto Key ID', _ch.cryptoKeyId.toString(), (v) {
                 final k = int.tryParse(v);
                 if (k != null) _update(_ch.copyWith(cryptoKeyId: k));
               }),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _smallField('Description', _ch.description ?? '', (v) {
+              child: _field('Description', _ch.description ?? '', (v) {
                 _update(_ch.copyWith(description: v.isEmpty ? null : v));
               }),
             ),
@@ -446,11 +283,10 @@ class _ChannelEditorState extends State<_ChannelEditor> {
     );
   }
 
-  Widget _smallField(String label, String value, ValueChanged<String> onChanged) {
+  Widget _field(String label, String value, ValueChanged<String> onChanged) {
     return TextFormField(
       initialValue: value,
-      style: const TextStyle(
-          color: AppColors.text, fontSize: 12),
+      style: const TextStyle(color: AppColors.text, fontSize: 12),
       decoration: InputDecoration(
         labelText: label,
         isDense: true,
@@ -460,6 +296,9 @@ class _ChannelEditorState extends State<_ChannelEditor> {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Shared color picker
 
 class _ColorPicker extends StatelessWidget {
   final String? selected;
@@ -501,11 +340,7 @@ class _ColorPicker extends StatelessWidget {
                   width: 2,
                 ),
                 boxShadow: isSelected
-                    ? [
-                        BoxShadow(
-                            color: e.value.withValues(alpha: 0.6),
-                            blurRadius: 6)
-                      ]
+                    ? [BoxShadow(color: e.value.withValues(alpha: 0.6), blurRadius: 6)]
                     : null,
               ),
               child: isSelected

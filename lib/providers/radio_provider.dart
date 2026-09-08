@@ -12,19 +12,55 @@ import '../dis/entity_id.dart';
 class RadioProvider extends ChangeNotifier {
   static const _radiosKey = 'radios';
   static const _intercomsKey = 'intercoms';
-  static const _netPlansKey = 'net_plans';
+  static const _netPlansKey = 'net_plans'; // kept for migration only
+  static const _radioChannelsKey = 'radio_channels';
 
   List<RadioConfig> _radios = [];
   List<IntercomConfig> _intercoms = [];
-  List<NetPlan> _netPlans = [];
+  List<NetChannel> _radioChannels = [];
 
   List<RadioConfig> get radios => List.unmodifiable(_radios);
   List<IntercomConfig> get intercoms => List.unmodifiable(_intercoms);
-  List<NetPlan> get netPlans => List.unmodifiable(_netPlans);
+  List<NetChannel> get radioChannels => List.unmodifiable(_radioChannels);
+
+  NetChannel? getRadioChannel(String? id) {
+    if (id == null) return null;
+    try {
+      return _radioChannels.firstWhere((c) => c.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
 
+    // Load old net plans for migration (may be null if already migrated)
+    List<NetPlan> oldNetPlans = [];
+    final netPlansJson = prefs.getString(_netPlansKey);
+    if (netPlansJson != null) {
+      try {
+        final list = jsonDecode(netPlansJson) as List;
+        oldNetPlans =
+            list.map((e) => NetPlan.fromJson(e as Map<String, dynamic>)).toList();
+      } catch (_) {}
+    }
+
+    // Load radio channels (new flat format), migrating from net plans if needed
+    final radioChJson = prefs.getString(_radioChannelsKey);
+    if (radioChJson != null) {
+      try {
+        final list = jsonDecode(radioChJson) as List;
+        _radioChannels = list
+            .map((e) => NetChannel.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } catch (_) {}
+    } else if (oldNetPlans.isNotEmpty) {
+      _radioChannels = oldNetPlans.expand((p) => p.channels).toList();
+      await _saveRadioChannels();
+    }
+
+    // Load radios
     final radiosJson = prefs.getString(_radiosKey);
     if (radiosJson != null) {
       try {
@@ -35,22 +71,46 @@ class RadioProvider extends ChangeNotifier {
       } catch (_) {}
     }
 
+    // Migrate radio channel assignments from old netPlanId+index format
+    bool didMigrateRadios = false;
+    for (int i = 0; i < _radios.length; i++) {
+      final r = _radios[i];
+      if (r.radioChannelId == null &&
+          r.netPlanId != null &&
+          r.netChannelIndex != null) {
+        try {
+          final plan = oldNetPlans.firstWhere((p) => p.id == r.netPlanId);
+          final idx = r.netChannelIndex!;
+          if (idx < plan.channels.length) {
+            _radios[i] =
+                _radios[i].copyWith(radioChannelId: plan.channels[idx].id);
+            didMigrateRadios = true;
+          }
+        } catch (_) {}
+      }
+      if (r.txRadioChannelId == null &&
+          r.txNetPlanId != null &&
+          r.txNetChannelIndex != null) {
+        try {
+          final plan = oldNetPlans.firstWhere((p) => p.id == r.txNetPlanId);
+          final idx = r.txNetChannelIndex!;
+          if (idx < plan.channels.length) {
+            _radios[i] =
+                _radios[i].copyWith(txRadioChannelId: plan.channels[idx].id);
+            didMigrateRadios = true;
+          }
+        } catch (_) {}
+      }
+    }
+    if (didMigrateRadios) await _saveRadios();
+
+    // Load intercoms
     final intercomsJson = prefs.getString(_intercomsKey);
     if (intercomsJson != null) {
       try {
         final list = jsonDecode(intercomsJson) as List;
         _intercoms = list
             .map((e) => IntercomConfig.fromJson(e as Map<String, dynamic>))
-            .toList();
-      } catch (_) {}
-    }
-
-    final netPlansJson = prefs.getString(_netPlansKey);
-    if (netPlansJson != null) {
-      try {
-        final list = jsonDecode(netPlansJson) as List;
-        _netPlans = list
-            .map((e) => NetPlan.fromJson(e as Map<String, dynamic>))
             .toList();
       } catch (_) {}
     }
@@ -70,11 +130,15 @@ class RadioProvider extends ChangeNotifier {
         _intercomsKey, jsonEncode(_intercoms.map((i) => i.toJson()).toList()));
   }
 
-  Future<void> _saveNetPlans() async {
+  Future<void> _saveRadioChannels() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-        _netPlansKey, jsonEncode(_netPlans.map((n) => n.toJson()).toList()));
+    await prefs.setString(_radioChannelsKey,
+        jsonEncode(_radioChannels.map((c) => c.toJson()).toList()));
   }
+
+  // ---------------------------------------------------------------------------
+  // Radio CRUD
+  // ---------------------------------------------------------------------------
 
   void addRadio({int siteId = 1, int applicationId = 1}) {
     final idx = _radios.length + 1;
@@ -103,6 +167,10 @@ class RadioProvider extends ChangeNotifier {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Intercom CRUD
+  // ---------------------------------------------------------------------------
+
   void addIntercom({int siteId = 1, int applicationId = 1}) {
     final idx = _intercoms.length + 1;
     _intercoms.add(IntercomConfig(
@@ -130,136 +198,121 @@ class RadioProvider extends ChangeNotifier {
     }
   }
 
-  void addNetPlan() {
-    _netPlans.add(NetPlan(name: 'Channel ${_netPlans.length + 1}'));
-    _saveNetPlans();
+  // ---------------------------------------------------------------------------
+  // Radio channel CRUD
+  // ---------------------------------------------------------------------------
+
+  void addRadioChannel() {
+    _radioChannels.add(NetChannel(
+      name: 'CH${_radioChannels.length + 1}',
+      frequency: 225000000,
+    ));
+    _saveRadioChannels();
     notifyListeners();
   }
 
-  void removeNetPlan(String id) {
-    _netPlans.removeWhere((n) => n.id == id);
+  void removeRadioChannel(String id) {
+    _radioChannels.removeWhere((c) => c.id == id);
+    // Clear references from radios
     for (int i = 0; i < _radios.length; i++) {
-      if (_radios[i].netPlanId == id) {
-        _radios[i] = _applyNetAssignment(_radios[i], netPlanId: null, netChannelIndex: null);
+      if (_radios[i].radioChannelId == id) {
+        _radios[i] = _radios[i].copyWith(radioChannelId: null);
+      }
+      if (_radios[i].txRadioChannelId == id) {
+        _radios[i] = _radios[i].copyWith(txRadioChannelId: null);
       }
     }
-    _saveNetPlans();
+    _saveRadioChannels();
     _saveRadios();
     notifyListeners();
   }
 
-  void updateNetPlan(NetPlan updated) {
-    final idx = _netPlans.indexWhere((n) => n.id == updated.id);
+  void updateRadioChannel(NetChannel updated) {
+    final idx = _radioChannels.indexWhere((c) => c.id == updated.id);
     if (idx >= 0) {
-      _netPlans[idx] = updated;
-      _saveNetPlans();
+      _radioChannels[idx] = updated;
+      _saveRadioChannels();
       notifyListeners();
     }
   }
 
-  void assignRadioToChannel(String radioId, String? netPlanId, int? channelIndex) {
+  // ---------------------------------------------------------------------------
+  // Channel assignment
+  // ---------------------------------------------------------------------------
+
+  void assignRadioChannel(String radioId, String? channelId) {
     final idx = _radios.indexWhere((r) => r.id == radioId);
     if (idx < 0) return;
-    final radio = _radios[idx];
+    final r = _radios[idx];
 
-    if (netPlanId == null || channelIndex == null) {
-      _radios[idx] = _applyNetAssignment(radio, netPlanId: null, netChannelIndex: null);
+    if (channelId == null) {
+      _radios[idx] = r.copyWith(radioChannelId: null);
     } else {
-      try {
-        final plan = _netPlans.firstWhere((n) => n.id == netPlanId);
-        if (channelIndex < plan.channels.length) {
-          final ch = plan.channels[channelIndex];
-          _radios[idx] = _applyNetAssignment(radio,
-              netPlanId: netPlanId,
-              netChannelIndex: channelIndex,
-              frequency: ch.frequency,
-              modulationType: ch.modulationType,
-              cryptoSystem: ch.cryptoSystem,
-              cryptoKeyId: ch.cryptoKeyId);
-        }
-      } catch (_) {}
+      final ch = getRadioChannel(channelId);
+      if (ch != null) {
+        _radios[idx] = r.copyWith(
+          radioChannelId: channelId,
+          frequency: ch.frequency,
+          modulationType: ch.modulationType,
+          cryptoSystem: ch.cryptoSystem,
+          cryptoKeyId: ch.cryptoKeyId,
+        );
+      }
     }
     _saveRadios();
     notifyListeners();
   }
 
-  /// Updates the radio's frequency and auto-selects a matching net channel if
-  /// one exists, otherwise clears the net assignment (manual tune).
+  void assignRadioTxChannel(String radioId, String? channelId) {
+    final idx = _radios.indexWhere((r) => r.id == radioId);
+    if (idx < 0) return;
+    final r = _radios[idx];
+
+    if (channelId == null) {
+      _radios[idx] = r.copyWith(txRadioChannelId: null);
+    } else {
+      final ch = getRadioChannel(channelId);
+      if (ch != null) {
+        _radios[idx] = r.copyWith(
+          txRadioChannelId: channelId,
+          txFrequency: ch.frequency,
+        );
+      }
+    }
+    _saveRadios();
+    notifyListeners();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Frequency tuning (auto-match to channel)
+  // ---------------------------------------------------------------------------
+
   void updateRadioFrequency(String radioId, double hz) {
-    for (final plan in _netPlans) {
-      for (var i = 0; i < plan.channels.length; i++) {
-        if ((plan.channels[i].frequency - hz).abs() < 1.0) {
-          assignRadioToChannel(radioId, plan.id, i);
-          return;
-        }
+    for (final ch in _radioChannels) {
+      if ((ch.frequency - hz).abs() < 1.0) {
+        assignRadioChannel(radioId, ch.id);
+        return;
       }
     }
     final idx = _radios.indexWhere((r) => r.id == radioId);
     if (idx < 0) return;
-    _radios[idx] = _applyNetAssignment(_radios[idx],
-        netPlanId: null, netChannelIndex: null, frequency: hz);
+    _radios[idx] = _radios[idx].copyWith(radioChannelId: null, frequency: hz);
     _saveRadios();
     notifyListeners();
   }
 
-  /// Builds a copy of [r] with net assignment fields set explicitly (supports
-  /// null to clear), preserving all other fields unchanged.
-  RadioConfig _applyNetAssignment(
-    RadioConfig r, {
-    required String? netPlanId,
-    required int? netChannelIndex,
-    double? frequency,
-    RadioModulationType? modulationType,
-    int? cryptoSystem,
-    int? cryptoKeyId,
-  }) =>
-      RadioConfig(
-        id: r.id,
-        name: r.name,
-        enabled: r.enabled,
-        frequency: frequency ?? r.frequency,
-        bandwidth: r.bandwidth,
-        modulationType: modulationType ?? r.modulationType,
-        powerWatts: r.powerWatts,
-        cryptoSystem: cryptoSystem ?? r.cryptoSystem,
-        cryptoKeyId: cryptoKeyId ?? r.cryptoKeyId,
-        inputDeviceId: r.inputDeviceId,
-        outputDeviceId: r.outputDeviceId,
-        inputGain: r.inputGain,
-        outputVolume: r.outputVolume,
-        squelch: r.squelch,
-        sidetoneVolume: r.sidetoneVolume,
-        outputPan: r.outputPan,
-        pttBindingIds: List<String>.from(r.pttBindingIds),
-        triggerMode: r.triggerMode,
-        voxThreshold: r.voxThreshold,
-        voxHangTime: r.voxHangTime,
-        netPlanId: netPlanId,
-        netChannelIndex: netChannelIndex,
-        exerciseId: r.exerciseId,
-        entityId: r.entityId,
-        radioNumber: r.radioNumber,
-        disLocalAddress: r.disLocalAddress,
-        disPort: r.disPort,
-        disUseMulticast: r.disUseMulticast,
-        disMulticastGroup: r.disMulticastGroup,
-        disUnicastAddress: r.disUnicastAddress,
-        disNetworkInterface: r.disNetworkInterface,
-        disProtocolVersion: r.disProtocolVersion,
-      );
-
-  NetPlan? getNetPlan(String? id) {
-    if (id == null) return null;
-    try {
-      return _netPlans.firstWhere((n) => n.id == id);
-    } catch (_) {
-      return null;
+  void updateRadioTxFrequency(String radioId, double hz) {
+    for (final ch in _radioChannels) {
+      if ((ch.frequency - hz).abs() < 1.0) {
+        assignRadioTxChannel(radioId, ch.id);
+        return;
+      }
     }
-  }
-
-  void importNetPlan(NetPlan plan) {
-    _netPlans.add(plan);
-    _saveNetPlans();
+    final idx = _radios.indexWhere((r) => r.id == radioId);
+    if (idx < 0) return;
+    _radios[idx] =
+        _radios[idx].copyWith(txRadioChannelId: null, txFrequency: hz);
+    _saveRadios();
     notifyListeners();
   }
 
@@ -267,11 +320,9 @@ class RadioProvider extends ChangeNotifier {
   // Export / Import
   // ---------------------------------------------------------------------------
 
-  /// Serialise radios, intercoms and net plans to a JSON map.
-  /// Audio device IDs are stripped (they are machine-specific).
   Map<String, dynamic> exportConfig() {
     return {
-      'version': 1,
+      'version': 2,
       'radios': _radios.map((r) {
         final j = r.toJson();
         j.remove('inputDeviceId');
@@ -284,12 +335,10 @@ class RadioProvider extends ChangeNotifier {
         j.remove('outputDeviceId');
         return j;
       }).toList(),
-      'netPlans': _netPlans.map((n) => n.toJson()).toList(),
+      'radioChannels': _radioChannels.map((c) => c.toJson()).toList(),
     };
   }
 
-  /// Export config to a user-chosen file via system save dialog.
-  /// Returns an error string on failure, or null on success / cancellation.
   Future<String?> exportToFile() async {
     try {
       final path = await FilePicker.platform.saveFile(
@@ -308,9 +357,6 @@ class RadioProvider extends ChangeNotifier {
     }
   }
 
-  /// Import config from a user-chosen file via system open dialog.
-  /// Replaces current radios, intercoms and net plans.
-  /// Returns an error string on failure, or null on success / cancellation.
   Future<String?> importFromFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -328,7 +374,6 @@ class RadioProvider extends ChangeNotifier {
       final json = jsonDecode(content) as Map<String, dynamic>;
 
       final version = json['version'] as int? ?? 1;
-      if (version != 1) return 'Unsupported config version: $version';
 
       _radios = (json['radios'] as List? ?? [])
           .map((e) => RadioConfig.fromJson(e as Map<String, dynamic>))
@@ -336,13 +381,88 @@ class RadioProvider extends ChangeNotifier {
       _intercoms = (json['intercoms'] as List? ?? [])
           .map((e) => IntercomConfig.fromJson(e as Map<String, dynamic>))
           .toList();
-      _netPlans = (json['netPlans'] as List? ?? [])
-          .map((e) => NetPlan.fromJson(e as Map<String, dynamic>))
-          .toList();
+
+      if (version >= 2) {
+        _radioChannels = (json['radioChannels'] as List? ?? [])
+            .map((e) => NetChannel.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } else {
+        // version 1: flatten net plans
+        final oldNetPlans = (json['netPlans'] as List? ?? [])
+            .map((e) => NetPlan.fromJson(e as Map<String, dynamic>))
+            .toList();
+        _radioChannels = oldNetPlans.expand((p) => p.channels).toList();
+        // Migrate channel assignments
+        for (int i = 0; i < _radios.length; i++) {
+          final r = _radios[i];
+          if (r.radioChannelId == null &&
+              r.netPlanId != null &&
+              r.netChannelIndex != null) {
+            try {
+              final plan =
+                  oldNetPlans.firstWhere((p) => p.id == r.netPlanId);
+              final idx = r.netChannelIndex!;
+              if (idx < plan.channels.length) {
+                _radios[i] = _radios[i]
+                    .copyWith(radioChannelId: plan.channels[idx].id);
+              }
+            } catch (_) {}
+          }
+        }
+      }
 
       await _saveRadios();
       await _saveIntercoms();
-      await _saveNetPlans();
+      await _saveRadioChannels();
+      notifyListeners();
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Map<String, dynamic> _channelsExportMap() => {
+        'version': 1,
+        'radioChannels': _radioChannels.map((c) => c.toJson()).toList(),
+      };
+
+  Future<String?> exportChannelsToFile() async {
+    try {
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Export Channel List',
+        fileName: 'channels.json',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+      if (path == null) return null;
+      await File(path).writeAsString(
+          const JsonEncoder.withIndent('  ').convert(_channelsExportMap()));
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  Future<String?> importChannelsFromFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        dialogTitle: 'Import Channel List',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return null;
+      final path = result.files.single.path;
+      if (path == null) return 'Could not access file path.';
+
+      final content = await File(path).readAsString();
+      final json = jsonDecode(content) as Map<String, dynamic>;
+
+      _radioChannels = (json['radioChannels'] as List? ?? [])
+          .map((e) => NetChannel.fromJson(e as Map<String, dynamic>))
+          .toList();
+
+      await _saveRadioChannels();
       notifyListeners();
       return null;
     } catch (e) {

@@ -9,7 +9,6 @@ import '../providers/audio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../dis/constants.dart';
 import '../theme.dart';
-import '../widgets/frequency_display.dart';
 
 class RadioConfigScreen extends StatefulWidget {
   final RadioConfig radio;
@@ -95,14 +94,30 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
             ),
           ]),
 
-          _Section(title: 'FREQUENCY', children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: FrequencyDisplay(
-                frequency: _radio.frequency,
-                onChanged: (f) => _update(_radio.copyWith(frequency: f)),
-              ),
+          _Section(title: 'SPLIT / REPEATER', children: [
+            SwitchListTile(
+              title: const Text('Split RX/TX', style: TextStyle(color: AppColors.text)),
+              subtitle: const Text('Use separate frequencies for receive and transmit',
+                  style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+              value: _radio.splitEnabled,
+              activeColor: AppColors.primaryGreen,
+              onChanged: (v) => _update(_radio.copyWith(
+                splitEnabled: v,
+                repeaterEnabled: v ? _radio.repeaterEnabled : false,
+              )),
             ),
+            if (_radio.splitEnabled)
+              SwitchListTile(
+                title: const Text('Repeater Mode', style: TextStyle(color: AppColors.text)),
+                subtitle: const Text('Re-transmit received audio on TX frequency',
+                    style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+                value: _radio.repeaterActive,
+                activeColor: const Color(0xFF42A5F5),
+                onChanged: (v) => _update(_radio.copyWith(repeaterEnabled: v)),
+              ),
+          ]),
+
+          _Section(title: 'FREQUENCY', children: [
             _Field(
               label: 'Bandwidth (Hz)',
               child: TextFormField(
@@ -320,55 +335,41 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
             ),
           ]),
 
-          _Section(title: 'NET PLAN ASSIGNMENT', children: [
+          _Section(title: 'CHANNEL ASSIGNMENT', children: [
             Consumer<RadioProvider>(
               builder: (context, rp, _) {
-                // Encode selection as "planId:channelIndex", null = Manual
-                final currentKey = _radio.netPlanId != null &&
-                        _radio.netChannelIndex != null
-                    ? '${_radio.netPlanId}:${_radio.netChannelIndex}'
-                    : null;
+                final channels = rp.radioChannels;
+                final currentId = _radio.radioChannelId;
 
                 final items = <DropdownMenuItem<String?>>[
                   const DropdownMenuItem(value: null, child: Text('Manual')),
-                  for (final plan in rp.netPlans)
-                    for (var i = 0; i < plan.channels.length; i++)
-                      DropdownMenuItem(
-                        value: '${plan.id}:$i',
-                        child: Text(
-                          plan.channels[i].name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+                  for (final ch in channels)
+                    DropdownMenuItem(
+                      value: ch.id,
+                      child: Text(ch.name, overflow: TextOverflow.ellipsis),
+                    ),
                 ];
 
-                // Guard: if current key isn't in the list, treat as Manual
-                final safeKey = items.any((m) => m.value == currentKey)
-                    ? currentKey
+                final safeId = items.any((m) => m.value == currentId)
+                    ? currentId
                     : null;
 
                 return _Field(
-                  label: 'Net / Channel',
+                  label: 'Radio Channel',
                   child: DropdownButtonFormField<String?>(
-                    value: safeKey,
+                    value: safeId,
                     dropdownColor: AppColors.surface,
                     style: _inputStyle,
                     decoration: _inputDec(''),
                     items: items,
                     onChanged: (v) {
                       if (v == null) {
-                        _update(_radio.copyWith(
-                            netPlanId: null, netChannelIndex: null));
+                        _update(_radio.copyWith(radioChannelId: null));
                       } else {
-                        final parts = v.split(':');
-                        final planId = parts[0];
-                        final idx = int.parse(parts[1]);
-                        final plan = rp.getNetPlan(planId);
-                        if (plan != null && idx < plan.channels.length) {
-                          final ch = plan.channels[idx];
+                        final ch = rp.getRadioChannel(v);
+                        if (ch != null) {
                           _update(_radio.copyWith(
-                            netPlanId: planId,
-                            netChannelIndex: idx,
+                            radioChannelId: v,
                             frequency: ch.frequency,
                             modulationType: ch.modulationType,
                             cryptoSystem: ch.cryptoSystem,

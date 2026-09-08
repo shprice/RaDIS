@@ -36,9 +36,9 @@ class _SegmentedSwitch extends StatelessWidget {
         final isFirst = mode == TriggerMode.values.first;
         final isLast = mode == TriggerMode.values.last;
 
-        const selectedBorder = Color(0xFFFF5252);
-        const selectedBg = Color(0xFF2A0A0A);
-        const selectedText = Color(0xFFFF5252);
+        const selectedBorder = Color(0xFFFFB300);
+        const selectedBg = Color(0xFF1A1200);
+        const selectedText = Color(0xFFFFB300);
         const unselectedBorder = Color(0xFF444444);
         const unselectedBg = Color(0xFF1A1A1A);
 
@@ -46,7 +46,10 @@ class _SegmentedSwitch extends StatelessWidget {
         final bgColor = isSelected ? selectedBg : unselectedBg;
         final textColor = isSelected ? selectedText : AppColors.textMuted;
 
-        return GestureDetector(
+        return Tooltip(
+          message: mode.fullName,
+          preferBelow: false,
+          child: GestureDetector(
           onTap: () => onChanged(mode),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -78,6 +81,7 @@ class _SegmentedSwitch extends StatelessWidget {
                 letterSpacing: 0.5,
               ),
             ),
+          ),
           ),
         );
       }).toList(),

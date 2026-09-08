@@ -8,6 +8,7 @@ import 'signal_pdu.dart';
 import 'receiver_pdu.dart';
 import 'intercom_signal_pdu.dart';
 import 'intercom_control_pdu.dart';
+import 'entity_state_pdu.dart';
 
 class DisNetworkConfig {
   final String localAddress;
@@ -157,6 +158,9 @@ class DisNetwork {
           break;
         case DisConstants.pduTypeIntercomControl:
           pdu = IntercomControlPdu.decode(data);
+          break;
+        case DisConstants.pduTypeEntityState:
+          pdu = EntityStatePdu.tryDecode(data);
           break;
         default:
           return;

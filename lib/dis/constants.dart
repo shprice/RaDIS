@@ -10,6 +10,7 @@ class DisConstants {
   static const int protocolFamilyRadioCommunications = 4;
 
   // PDU Types
+  static const int pduTypeEntityState = 1;
   static const int pduTypeTransmitter = 25;
   static const int pduTypeSignal = 26;
   static const int pduTypeReceiver = 27;

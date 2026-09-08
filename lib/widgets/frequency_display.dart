@@ -43,11 +43,13 @@ const _kBorder = Color(0xFF1A3A1A);
 class FrequencyDisplay extends StatefulWidget {
   final double frequency; // Hz
   final ValueChanged<double>? onChanged;
+  final bool compact;
 
   const FrequencyDisplay({
     super.key,
     required this.frequency,
     this.onChanged,
+    this.compact = false,
   });
 
   @override
@@ -103,25 +105,33 @@ class _FrequencyDisplayState extends State<FrequencyDisplay> {
               )
             else
               display,
-            if (_interactive) ...[
+            if (_interactive && !widget.compact) ...[
               const SizedBox(width: 4),
               _StepButtons(onUp: () => _adjust(1), onDown: () => _adjust(-1)),
             ],
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             _UnitPills(
               selected: _unit,
               onSelected: (u) => setState(() => _unit = u),
+              compact: widget.compact,
             ),
             if (_interactive) ...[
-              const SizedBox(width: 8),
+              SizedBox(width: widget.compact ? 4 : 8),
               GestureDetector(
                 onTap: _openKeypad,
-                child: const Icon(Icons.dialpad, size: 14, color: _kGreenVeryDim),
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: _kGreenVeryDim),
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                  child: const Icon(Icons.dialpad, size: 10, color: _kGreenVeryDim),
+                ),
               ),
             ],
           ],
@@ -131,8 +141,10 @@ class _FrequencyDisplayState extends State<FrequencyDisplay> {
   }
 
   Widget _buildDisplay() {
+    final isCompact = widget.compact;
     Widget box = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(
+          horizontal: isCompact ? 6 : 12, vertical: isCompact ? 3 : 6),
       decoration: BoxDecoration(
         color: _kBg,
         border: Border.all(color: _kBorder, width: 1.5),
@@ -145,23 +157,23 @@ class _FrequencyDisplayState extends State<FrequencyDisplay> {
         children: [
           Text(
             _format(_displayValue),
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Courier New',
-              fontSize: 24,
+              fontSize: isCompact ? 15.0 : 24.0,
               fontWeight: FontWeight.bold,
               color: _kGreen,
-              letterSpacing: 2,
-              shadows: [Shadow(color: _kGreenDim, blurRadius: 6)],
+              letterSpacing: isCompact ? 1 : 2,
+              shadows: const [Shadow(color: _kGreenDim, blurRadius: 6)],
             ),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: isCompact ? 3 : 6),
           Text(
             _unit.label,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: 'Courier New',
-              fontSize: 11,
+              fontSize: isCompact ? 9.0 : 11.0,
               color: _kGreen,
-              shadows: [Shadow(color: _kGreenDim, blurRadius: 4)],
+              shadows: const [Shadow(color: _kGreenDim, blurRadius: 4)],
             ),
           ),
         ],
@@ -237,8 +249,9 @@ class _StepBtn extends StatelessWidget {
 class _UnitPills extends StatelessWidget {
   final FreqUnit selected;
   final ValueChanged<FreqUnit> onSelected;
+  final bool compact;
 
-  const _UnitPills({required this.selected, required this.onSelected});
+  const _UnitPills({required this.selected, required this.onSelected, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
@@ -250,7 +263,7 @@ class _UnitPills extends StatelessWidget {
           onTap: () => onSelected(unit),
           child: Container(
             margin: const EdgeInsets.only(right: 3),
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            padding: EdgeInsets.symmetric(horizontal: compact ? 3 : 5, vertical: 1),
             decoration: BoxDecoration(
               color: active ? const Color(0xFF0A1A0A) : Colors.transparent,
               border: Border.all(
