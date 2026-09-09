@@ -149,3 +149,8 @@ DIS Radio incorporates the following third-party libraries:
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+---
+### Looking for an awesome DIS viewer / logger / replay tool? 
+Then go take a look at one of my other projects here: https://github.com/shprice/DISkit
+
