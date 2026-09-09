@@ -31,6 +31,14 @@ class IntercomCard extends StatelessWidget {
     final muted = dis.isIntercomMuted(intercom.id);
     final intercomSupported = dis.supportsIntercomFor(intercom.id);
 
+    final isDuplicate = intercom.enabled &&
+        rp.intercoms.any((other) =>
+            other.id != intercom.id &&
+            other.enabled &&
+            other.entityId == intercom.entityId &&
+            other.communicationsDeviceId == intercom.communicationsDeviceId &&
+            other.sourceChannelId == intercom.sourceChannelId);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -55,7 +63,7 @@ class IntercomCard extends StatelessWidget {
                   ],
                 ),
               ),
-            _buildHeader(context, txActive, rxState, dis, rp),
+            _buildHeader(context, txActive, rxState, dis, rp, isDuplicate),
             const SizedBox(height: 8),
             _buildPttRow(context, txActive, rxState, dis, rp, muted),
             const SizedBox(height: 6),
@@ -69,7 +77,7 @@ class IntercomCard extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context, bool txActive, RadioRxState rxState,
-      DisProvider dis, RadioProvider rp) {
+      DisProvider dis, RadioProvider rp, bool isDuplicate) {
     return Row(
       children: [
         Icon(Icons.headset_mic,
@@ -92,8 +100,9 @@ class IntercomCard extends StatelessWidget {
                 spacing: 4,
                 runSpacing: 2,
                 children: [
-                  _IcIdPill(intercom: intercom, radioProvider: rp),
-                  _IntercomEntityPill(intercom: intercom, disProvider: dis),
+                  _IcIdPill(intercom: intercom, radioProvider: rp, isDuplicate: isDuplicate),
+                  _IntercomEntityPill(intercom: intercom, disProvider: dis, isDuplicate: isDuplicate),
+                  if (isDuplicate) const _DuplicateWarningChip(),
                 ],
               ),
             ],
@@ -277,13 +286,20 @@ class IntercomCard extends StatelessWidget {
 class _IcIdPill extends StatelessWidget {
   final IntercomConfig intercom;
   final RadioProvider radioProvider;
+  final bool isDuplicate;
 
-  const _IcIdPill({required this.intercom, required this.radioProvider});
+  const _IcIdPill({required this.intercom, required this.radioProvider, required this.isDuplicate});
 
   @override
   Widget build(BuildContext context) {
+    final borderColor = isDuplicate
+        ? Colors.orange.withValues(alpha: 0.8)
+        : AppColors.primaryGreen.withValues(alpha: 0.5);
+    final bgColor = isDuplicate ? const Color(0xFF1A0A00) : const Color(0xFF0A1A0A);
+    final textColor = isDuplicate ? Colors.orange : AppColors.primaryGreen;
+
     return Tooltip(
-      message: 'IC ID / Station — click to edit',
+      message: 'IC ID / Source Channel — click to edit',
       preferBelow: false,
       child: GestureDetector(
         onTap: () => _openDialog(context),
@@ -292,16 +308,15 @@ class _IcIdPill extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              color: const Color(0xFF0A1A0A),
-              border: Border.all(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.5)),
+              color: bgColor,
+              border: Border.all(color: borderColor),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
-              'IC ID:${intercom.communicationsDeviceId}  STA:${intercom.stationName}',
-              style: const TextStyle(
+              'IC ID:${intercom.communicationsDeviceId} CH:${intercom.sourceChannelId}',
+              style: TextStyle(
                 fontSize: 9,
-                color: AppColors.primaryGreen,
+                color: textColor,
                 letterSpacing: 0.5,
               ),
             ),
@@ -316,14 +331,14 @@ class _IcIdPill extends StatelessWidget {
       context: context,
       builder: (_) => _IcIdDialog(
         deviceId: intercom.communicationsDeviceId,
-        stationName: intercom.stationName,
+        sourceChannelId: intercom.sourceChannelId,
       ),
     );
     if (result != null && context.mounted) {
       radioProvider.updateIntercom(
         intercom.copyWith(
           communicationsDeviceId: result.$1,
-          stationName: result.$2,
+          sourceChannelId: result.$2,
         ),
       );
     }
@@ -332,9 +347,9 @@ class _IcIdPill extends StatelessWidget {
 
 class _IcIdDialog extends StatefulWidget {
   final int deviceId;
-  final int stationName;
+  final int sourceChannelId;
 
-  const _IcIdDialog({required this.deviceId, required this.stationName});
+  const _IcIdDialog({required this.deviceId, required this.sourceChannelId});
 
   @override
   State<_IcIdDialog> createState() => _IcIdDialogState();
@@ -342,19 +357,19 @@ class _IcIdDialog extends StatefulWidget {
 
 class _IcIdDialogState extends State<_IcIdDialog> {
   late final TextEditingController _deviceCtrl;
-  late final TextEditingController _stationCtrl;
+  late final TextEditingController _channelCtrl;
 
   @override
   void initState() {
     super.initState();
     _deviceCtrl = TextEditingController(text: widget.deviceId.toString());
-    _stationCtrl = TextEditingController(text: widget.stationName.toString());
+    _channelCtrl = TextEditingController(text: widget.sourceChannelId.toString());
   }
 
   @override
   void dispose() {
     _deviceCtrl.dispose();
-    _stationCtrl.dispose();
+    _channelCtrl.dispose();
     super.dispose();
   }
 
@@ -386,10 +401,10 @@ class _IcIdDialogState extends State<_IcIdDialog> {
           ),
           const SizedBox(height: 8),
           TextField(
-            controller: _stationCtrl,
+            controller: _channelCtrl,
             style: const TextStyle(color: AppColors.text, fontSize: 13),
             decoration: const InputDecoration(
-              labelText: 'Station Name',
+              labelText: 'Source Channel ID',
               isDense: true,
               border: OutlineInputBorder(),
             ),
@@ -404,9 +419,9 @@ class _IcIdDialogState extends State<_IcIdDialog> {
         TextButton(
           onPressed: () {
             final id = int.tryParse(_deviceCtrl.text);
-            final sta = int.tryParse(_stationCtrl.text);
-            if (id != null && sta != null) {
-              Navigator.pop(context, (id, sta));
+            final ch = int.tryParse(_channelCtrl.text);
+            if (id != null && ch != null) {
+              Navigator.pop(context, (id, ch));
             }
           },
           child: const Text('APPLY',
@@ -424,9 +439,10 @@ class _IcIdDialogState extends State<_IcIdDialog> {
 class _IntercomEntityPill extends StatelessWidget {
   final IntercomConfig intercom;
   final DisProvider disProvider;
+  final bool isDuplicate;
 
   const _IntercomEntityPill(
-      {required this.intercom, required this.disProvider});
+      {required this.intercom, required this.disProvider, required this.isDuplicate});
 
   bool get _isSet =>
       intercom.entityId.siteId != 0 ||
@@ -449,11 +465,13 @@ class _IntercomEntityPill extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              color: const Color(0xFF0A0A1A),
+              color: isDuplicate ? const Color(0xFF1A0A00) : const Color(0xFF0A0A1A),
               border: Border.all(
-                color: _isSet
-                    ? AppColors.amber.withValues(alpha: 0.5)
-                    : const Color(0xFF333333),
+                color: isDuplicate
+                    ? Colors.orange.withValues(alpha: 0.8)
+                    : (_isSet
+                        ? AppColors.amber.withValues(alpha: 0.5)
+                        : const Color(0xFF333333)),
               ),
               borderRadius: BorderRadius.circular(3),
             ),
@@ -461,7 +479,9 @@ class _IntercomEntityPill extends StatelessWidget {
               _label,
               style: TextStyle(
                 fontSize: 9,
-                color: _isSet ? AppColors.amber : AppColors.textMuted,
+                color: isDuplicate
+                    ? Colors.orange
+                    : (_isSet ? AppColors.amber : AppColors.textMuted),
                 letterSpacing: 0.5,
               ),
             ),
@@ -484,6 +504,40 @@ class _IntercomEntityPill extends StatelessWidget {
           .read<RadioProvider>()
           .updateIntercom(intercom.copyWith(entityId: result));
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Duplicate warning chip
+// ---------------------------------------------------------------------------
+
+class _DuplicateWarningChip extends StatelessWidget {
+  const _DuplicateWarningChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Two or more intercoms share the same Entity ID, Intercom ID,\n'
+          'and Source Channel ID. Only one will properly send/receive.',
+      preferBelow: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.15),
+          border: Border.all(color: Colors.orange.withValues(alpha: 0.6)),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: const Text(
+          '⚠ DUPLICATE ID',
+          style: TextStyle(
+            fontSize: 9,
+            color: Colors.orange,
+            letterSpacing: 0.5,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
   }
 }
 

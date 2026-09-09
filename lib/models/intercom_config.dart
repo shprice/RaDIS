@@ -37,8 +37,8 @@ class IntercomConfig {
   /// DIS sourceCommunicationsDeviceId — identifies this intercom unit (UINT16)
   int communicationsDeviceId;
 
-  /// DIS sourceLineId — station identifier within the intercom network (UINT8, 0–255)
-  int stationName;
+  /// DIS sourceLineId — selected partyline loop identifier (UINT16)
+  int sourceChannelId;
 
   /// communicationsChannelType (SISO-REF-010 ENUM8):
   /// 0=Reserved, 1=FDX, 2=HDX RX-only, 3=HDX TX-only, 4=HDX
@@ -76,7 +76,7 @@ class IntercomConfig {
     this.exerciseId = 1,
     EntityId? entityId,
     this.communicationsDeviceId = 1,
-    this.stationName = 0,
+    this.sourceChannelId = 0,
     this.channelType = DisConstants.intercomChannelTypeFdx,
     this.encodingType = DisConstants.encodingMulaw,
     this.sampleRate = DisConstants.sampleRate8kHz,
@@ -108,7 +108,7 @@ class IntercomConfig {
         'exerciseId': exerciseId,
         'entityId': entityId.toJson(),
         'communicationsDeviceId': communicationsDeviceId,
-        'stationName': stationName,
+        'sourceChannelId': sourceChannelId,
         'channelType': channelType,
         'encodingType': encodingType,
         'sampleRate': sampleRate,
@@ -148,7 +148,8 @@ class IntercomConfig {
             (json['communicationsDeviceId'] as num?)?.toInt() ??
                 // migrate from old nets-based config: use the old manual device ID
                 (json['nets'] == null ? 1 : 1),
-        stationName: (json['stationName'] as num?)?.toInt() ?? 0,
+        sourceChannelId: (json['sourceChannelId'] as num?)?.toInt() ??
+            (json['stationName'] as num?)?.toInt() ?? 0,
         channelType: (json['channelType'] as num?)?.toInt() ??
             DisConstants.intercomChannelTypeFdx,
         encodingType: (json['encodingType'] as num?)?.toInt() ??
@@ -189,7 +190,7 @@ class IntercomConfig {
     int? exerciseId,
     EntityId? entityId,
     int? communicationsDeviceId,
-    int? stationName,
+    int? sourceChannelId,
     int? channelType,
     int? encodingType,
     int? sampleRate,
@@ -219,7 +220,7 @@ class IntercomConfig {
         entityId: entityId ?? this.entityId,
         communicationsDeviceId:
             communicationsDeviceId ?? this.communicationsDeviceId,
-        stationName: stationName ?? this.stationName,
+        sourceChannelId: sourceChannelId ?? this.sourceChannelId,
         channelType: channelType ?? this.channelType,
         encodingType: encodingType ?? this.encodingType,
         sampleRate: sampleRate ?? this.sampleRate,

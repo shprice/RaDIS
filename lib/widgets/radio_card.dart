@@ -37,13 +37,20 @@ class RadioCard extends StatelessWidget {
     final txActive = disProvider.isTxActive(radio.id);
     final muted = disProvider.isRadioMuted(radio.id);
 
+    final isDuplicate = radio.enabled &&
+        radioProvider.radios.any((r) =>
+            r.id != radio.id &&
+            r.enabled &&
+            r.entityId == radio.entityId &&
+            r.radioNumber == radio.radioNumber);
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(context, txActive, rxState, disProvider),
+            _buildHeader(context, txActive, rxState, disProvider, isDuplicate),
             const SizedBox(height: 8),
             _buildFrequencySection(context, radioProvider),
             const SizedBox(height: 8),
@@ -124,7 +131,7 @@ class RadioCard extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context, bool txActive, RadioRxState rxState,
-      DisProvider disProvider) {
+      DisProvider disProvider, bool isDuplicate) {
     final rp = context.read<RadioProvider>();
     return Row(
       children: [
@@ -145,8 +152,9 @@ class RadioCard extends StatelessWidget {
                 spacing: 4,
                 runSpacing: 2,
                 children: [
-                  _RadioIdPill(radio: radio, radioProvider: rp),
-                  _EntityPill(radio: radio, disProvider: disProvider),
+                  _RadioIdPill(radio: radio, radioProvider: rp, isDuplicate: isDuplicate),
+                  _EntityPill(radio: radio, disProvider: disProvider, isDuplicate: isDuplicate),
+                  if (isDuplicate) const _DuplicateWarningChip(),
                 ],
               ),
             ],
@@ -1457,14 +1465,66 @@ class _MiniToggleButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Duplicate Entity+RadioId warning chip
+// ---------------------------------------------------------------------------
+
+class _DuplicateWarningChip extends StatelessWidget {
+  const _DuplicateWarningChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Entity ID and Radio ID are shared with another radio.\n'
+          'DIS cannot distinguish between them — PDUs may be filtered or ignored.',
+      preferBelow: false,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A0A00),
+        border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      textStyle: const TextStyle(fontSize: 10, color: Colors.orange),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.12),
+          border: Border.all(color: Colors.orange.withValues(alpha: 0.6)),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.warning_amber_rounded, size: 9, color: Colors.orange),
+            SizedBox(width: 3),
+            Text(
+              'DUPLICATE ID',
+              style: TextStyle(
+                fontSize: 8,
+                color: Colors.orange,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Host Entity pill + picker dialog
 // ---------------------------------------------------------------------------
 
 class _EntityPill extends StatelessWidget {
   final RadioConfig radio;
   final DisProvider disProvider;
+  final bool isDuplicate;
 
-  const _EntityPill({required this.radio, required this.disProvider});
+  const _EntityPill({
+    required this.radio,
+    required this.disProvider,
+    this.isDuplicate = false,
+  });
 
   bool get _isSet =>
       radio.entityId.siteId != 0 ||
@@ -1477,6 +1537,19 @@ class _EntityPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final Color color;
+    final Color bg;
+    if (isDuplicate) {
+      color = Colors.orange;
+      bg = const Color(0xFF1A0A00);
+    } else if (_isSet) {
+      color = AppColors.amber;
+      bg = const Color(0xFF0A0A1A);
+    } else {
+      color = AppColors.textMuted;
+      bg = const Color(0xFF0A0A1A);
+    }
+
     return Tooltip(
       message: 'Host Entity ID — click to assign',
       preferBelow: false,
@@ -1487,11 +1560,13 @@ class _EntityPill extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              color: const Color(0xFF0A0A1A),
+              color: bg,
               border: Border.all(
-                color: _isSet
-                    ? AppColors.amber.withValues(alpha: 0.5)
-                    : const Color(0xFF333333),
+                color: isDuplicate
+                    ? Colors.orange.withValues(alpha: 0.5)
+                    : (_isSet
+                        ? AppColors.amber.withValues(alpha: 0.5)
+                        : const Color(0xFF333333)),
               ),
               borderRadius: BorderRadius.circular(3),
             ),
@@ -1499,7 +1574,7 @@ class _EntityPill extends StatelessWidget {
               _label,
               style: TextStyle(
                 fontSize: 9,
-                color: _isSet ? AppColors.amber : AppColors.textMuted,
+                color: color,
                 letterSpacing: 0.5,
               ),
             ),
@@ -1809,11 +1884,18 @@ Color _channelDisplayColor(String? colorName) {
 class _RadioIdPill extends StatelessWidget {
   final RadioConfig radio;
   final RadioProvider radioProvider;
+  final bool isDuplicate;
 
-  const _RadioIdPill({required this.radio, required this.radioProvider});
+  const _RadioIdPill({
+    required this.radio,
+    required this.radioProvider,
+    this.isDuplicate = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final color = isDuplicate ? Colors.orange : AppColors.primaryGreen;
+    final bg = isDuplicate ? const Color(0xFF1A0A00) : const Color(0xFF0A1A0A);
     return Tooltip(
       message: 'Radio ID — click to edit',
       preferBelow: false,
@@ -1824,15 +1906,15 @@ class _RadioIdPill extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: const Color(0xFF0A1A0A),
-              border: Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.5)),
+              color: bg,
+              border: Border.all(color: color.withValues(alpha: 0.5)),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
               'RADIO ID:${radio.radioNumber}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 9,
-                color: AppColors.primaryGreen,
+                color: color,
                 letterSpacing: 0.5,
               ),
             ),

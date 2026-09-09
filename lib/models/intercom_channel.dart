@@ -9,7 +9,7 @@ class IntercomChannel {
   String? description;
   String? color;
   int communicationsDeviceId;
-  int stationName;
+  int sourceChannelId;
   int channelType;
   int encodingType;
   int sampleRate;
@@ -20,7 +20,7 @@ class IntercomChannel {
     this.description,
     this.color,
     this.communicationsDeviceId = 1,
-    this.stationName = 0,
+    this.sourceChannelId = 0,
     this.channelType = DisConstants.intercomChannelTypeFdx,
     this.encodingType = DisConstants.encodingMulaw,
     this.sampleRate = DisConstants.sampleRate8kHz,
@@ -32,7 +32,7 @@ class IntercomChannel {
         'description': description,
         'color': color,
         'communicationsDeviceId': communicationsDeviceId,
-        'stationName': stationName,
+        'sourceChannelId': sourceChannelId,
         'channelType': channelType,
         'encodingType': encodingType,
         'sampleRate': sampleRate,
@@ -46,7 +46,8 @@ class IntercomChannel {
         color: json['color'] as String?,
         communicationsDeviceId:
             (json['communicationsDeviceId'] as num?)?.toInt() ?? 1,
-        stationName: (json['stationName'] as num?)?.toInt() ?? 0,
+        sourceChannelId: (json['sourceChannelId'] as num?)?.toInt() ??
+            (json['stationName'] as num?)?.toInt() ?? 0,
         channelType: (json['channelType'] as num?)?.toInt() ??
             DisConstants.intercomChannelTypeFdx,
         encodingType: (json['encodingType'] as num?)?.toInt() ??
@@ -60,7 +61,7 @@ class IntercomChannel {
     String? description,
     Object? color = _unset,
     int? communicationsDeviceId,
-    int? stationName,
+    int? sourceChannelId,
     int? channelType,
     int? encodingType,
     int? sampleRate,
@@ -72,7 +73,7 @@ class IntercomChannel {
         color: color == _unset ? this.color : color as String?,
         communicationsDeviceId:
             communicationsDeviceId ?? this.communicationsDeviceId,
-        stationName: stationName ?? this.stationName,
+        sourceChannelId: sourceChannelId ?? this.sourceChannelId,
         channelType: channelType ?? this.channelType,
         encodingType: encodingType ?? this.encodingType,
         sampleRate: sampleRate ?? this.sampleRate,

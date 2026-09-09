@@ -18,6 +18,27 @@ import '../models/intercom_config.dart';
 import '../models/app_settings.dart';
 import '../models/trigger_mode.dart';
 
+class _RemoteTxState {
+  final int frequency;
+  final int cryptoSystem;
+  final int cryptoKeyId;
+  final dis.ModulationType modulationType;
+
+  const _RemoteTxState({
+    required this.frequency,
+    required this.cryptoSystem,
+    required this.cryptoKeyId,
+    required this.modulationType,
+  });
+}
+
+enum _CryptoOutcome { pass, muted, rawLeakage }
+
+class _RemoteIntercomState {
+  final int sourceChannelId;
+  const _RemoteIntercomState({required this.sourceChannelId});
+}
+
 class SeenEntity {
   final EntityId id;
   final int forceId;
@@ -77,9 +98,12 @@ class DisProvider extends ChangeNotifier {
   final Map<String, CvsdDecoder> _cvsdDecoders = {};
   final Map<String, CvsdEncoder> _cvsdEncoders = {};
   final Set<String> _intercomInitialized = {};
-  // Keyed by "siteId_appId_entityNum_radioId" — tracks last-known frequency of
-  // remote transmitters so Signal PDUs can be frequency-filtered.
-  final Map<String, int> _remoteTransmitterFreqs = {};
+  // Keyed by "siteId_appId_entityNum_radioId" — tracks last-known state of
+  // remote transmitters so Signal PDUs can be frequency/modulation/crypto-filtered.
+  final Map<String, _RemoteTxState> _remoteTransmitters = {};
+  // Keyed by "siteId_appId_entityNum_deviceId" — caches sourceChannelId from
+  // received IntercomControlPdus so Signal PDUs can be channel-filtered.
+  final Map<String, _RemoteIntercomState> _remoteIntercomStates = {};
 
   bool _connected = false;
   AppSettings? _settings;
@@ -709,7 +733,7 @@ class DisProvider extends ChangeNotifier {
       communicationsChannelType: intercom.channelType,
       sourceEntityId: intercom.entityId,
       sourceCommunicationsDeviceId: intercom.communicationsDeviceId,
-      sourceLineId: intercom.stationName,
+      sourceLineId: intercom.sourceChannelId,
       masterEntityId: intercom.entityId,
       masterCommunicationsDeviceId: intercom.communicationsDeviceId,
       transmitLineState: transmitting
@@ -735,7 +759,7 @@ class DisProvider extends ChangeNotifier {
       communicationsChannelType: intercom.channelType,
       sourceEntityId: intercom.entityId,
       sourceCommunicationsDeviceId: intercom.communicationsDeviceId,
-      sourceLineId: intercom.stationName,
+      sourceLineId: intercom.sourceChannelId,
       masterEntityId: intercom.entityId,
       masterCommunicationsDeviceId: intercom.communicationsDeviceId,
       transmitLineState: DisConstants.intercomTransmitLineStateIdle,
@@ -779,29 +803,37 @@ class DisProvider extends ChangeNotifier {
     // Only receive audio if the sender is known to be on our frequency.
     final senderKey =
         '${pdu.entityId.siteId}_${pdu.entityId.applicationId}_${pdu.entityId.entityNumber}_${pdu.radioId}';
-    final senderFreq = _remoteTransmitterFreqs[senderKey];
-    if (senderFreq == null) return; // no Transmitter PDU seen yet for this sender
-    if ((radio.frequency - senderFreq).abs() >= radio.bandwidth / 2) return;
+    final remote = _remoteTransmitters[senderKey];
+    if (remote == null) return; // no Transmitter PDU seen yet for this sender
+    if ((radio.frequency - remote.frequency).abs() >= radio.bandwidth / 2) return;
+    if (!_modulationMatches(radio.modulationType, remote.modulationType)) return;
+
+    final cryptoOutcome = _evaluateCrypto(radio, remote);
+    if (cryptoOutcome == _CryptoOutcome.muted) return;
 
     Uint8List pcmBytes;
     int bitsPerSample = 16;
-    final encodingType = pdu.encodingType;
 
-    if (encodingType == DisConstants.encodingMulaw) {
-      pcmBytes = G711Codec.int16ToBytes(G711Codec.decodeMulaw(pdu.data));
-    } else if (encodingType == DisConstants.encodingAlaw) {
-      pcmBytes = G711Codec.int16ToBytes(G711Codec.decodeAlaw(pdu.data));
-    } else if (encodingType == DisConstants.encodingLinear16) {
-      pcmBytes = _swapBytes16(pdu.data);
-    } else if (encodingType == DisConstants.encodingLinear8) {
+    if (cryptoOutcome == _CryptoOutcome.rawLeakage) {
+      // Receiver has no crypto but sender is encrypted: pass the raw payload
+      // bytes straight to audio as 8-bit PCM — produces digital screeching noise.
       pcmBytes = _unsigned8ToSigned16(pdu.data);
-    } else if (encodingType == DisConstants.encodingCVSD) {
-      final key =
-          '${pdu.entityId.siteId}_${pdu.entityId.applicationId}_${pdu.entityId.entityNumber}_${pdu.radioId}';
-      final decoder = _cvsdDecoders.putIfAbsent(key, CvsdDecoder.new);
-      pcmBytes = decoder.decode(pdu.data);
     } else {
-      pcmBytes = pdu.data;
+      final encodingType = pdu.encodingType;
+      if (encodingType == DisConstants.encodingMulaw) {
+        pcmBytes = G711Codec.int16ToBytes(G711Codec.decodeMulaw(pdu.data));
+      } else if (encodingType == DisConstants.encodingAlaw) {
+        pcmBytes = G711Codec.int16ToBytes(G711Codec.decodeAlaw(pdu.data));
+      } else if (encodingType == DisConstants.encodingLinear16) {
+        pcmBytes = _swapBytes16(pdu.data);
+      } else if (encodingType == DisConstants.encodingLinear8) {
+        pcmBytes = _unsigned8ToSigned16(pdu.data);
+      } else if (encodingType == DisConstants.encodingCVSD) {
+        final decoder = _cvsdDecoders.putIfAbsent(senderKey, CvsdDecoder.new);
+        pcmBytes = decoder.decode(pdu.data);
+      } else {
+        pcmBytes = pdu.data;
+      }
     }
 
     final rms = _rmsOfPcm(pcmBytes);
@@ -834,10 +866,15 @@ class DisProvider extends ChangeNotifier {
     }
     if (pdu.exerciseId != radio.exerciseId) return;
 
-    // Cache this sender's frequency so Signal PDU handlers can use it.
+    // Cache this sender's state so Signal PDU handlers can validate against it.
     final senderKey =
         '${pdu.entityId.siteId}_${pdu.entityId.applicationId}_${pdu.entityId.entityNumber}_${pdu.radioId}';
-    _remoteTransmitterFreqs[senderKey] = pdu.frequency;
+    _remoteTransmitters[senderKey] = _RemoteTxState(
+      frequency: pdu.frequency,
+      cryptoSystem: pdu.cryptoSystem,
+      cryptoKeyId: pdu.cryptoKeyId,
+      modulationType: pdu.modulationType,
+    );
     _trackSeenEntity(pdu.entityId);
 
     if ((radio.frequency - pdu.frequency).abs() < radio.bandwidth / 2) {
@@ -862,7 +899,22 @@ class DisProvider extends ChangeNotifier {
     if (pdu is IntercomSignalPdu) {
       _packetsRx++;
       _handleIntercomSignalPduForIntercom(pdu, intercomId);
+    } else if (pdu is IntercomControlPdu) {
+      _handleIntercomControlPduForIntercom(pdu, intercomId);
     }
+  }
+
+  void _handleIntercomControlPduForIntercom(
+      IntercomControlPdu pdu, String intercomId) {
+    final intercom = _findIntercom(intercomId);
+    if (intercom == null) return;
+    if (pdu.sourceEntityId != intercom.entityId) return;
+    // Don't cache our own control PDUs
+    if (pdu.sourceCommunicationsDeviceId == intercom.communicationsDeviceId) return;
+    final key =
+        '${pdu.sourceEntityId.siteId}_${pdu.sourceEntityId.applicationId}_${pdu.sourceEntityId.entityNumber}_${pdu.sourceCommunicationsDeviceId}';
+    _remoteIntercomStates[key] =
+        _RemoteIntercomState(sourceChannelId: pdu.sourceLineId);
   }
 
   void _handleIntercomSignalPduForIntercom(
@@ -870,9 +922,16 @@ class DisProvider extends ChangeNotifier {
     final intercom = _findIntercom(intercomId);
     if (intercom == null) return;
 
-    // Receive only from same entity/platform with a different station (not self)
-    if (pdu.entityId != intercom.entityId ||
-        pdu.communicationsDeviceId == intercom.communicationsDeviceId) return;
+    // Must come from same entity
+    if (pdu.entityId != intercom.entityId) return;
+    // Self-filter: ignore own station
+    if (pdu.communicationsDeviceId == intercom.communicationsDeviceId) return;
+
+    // Receive only if the sender's cached source channel matches ours
+    final senderKey =
+        '${pdu.entityId.siteId}_${pdu.entityId.applicationId}_${pdu.entityId.entityNumber}_${pdu.communicationsDeviceId}';
+    final remote = _remoteIntercomStates[senderKey];
+    if (remote == null || remote.sourceChannelId != intercom.sourceChannelId) return;
 
     Uint8List pcmBytes;
     final et = pdu.encodingType;
@@ -885,9 +944,7 @@ class DisProvider extends ChangeNotifier {
     } else if (et == DisConstants.encodingLinear8) {
       pcmBytes = _unsigned8ToSigned16(pdu.data);
     } else if (et == DisConstants.encodingCVSD) {
-      final key =
-          '${pdu.entityId.siteId}_${pdu.entityId.applicationId}_${pdu.entityId.entityNumber}_${pdu.communicationsDeviceId}';
-      final decoder = _cvsdDecoders.putIfAbsent(key, CvsdDecoder.new);
+      final decoder = _cvsdDecoders.putIfAbsent(senderKey, CvsdDecoder.new);
       pcmBytes = decoder.decode(pdu.data);
     } else {
       pcmBytes = pdu.data;
@@ -1054,6 +1111,34 @@ class DisProvider extends ChangeNotifier {
       sum += s * s;
     }
     return sum / count > 0 ? sum / count : 0;
+  }
+
+  bool _modulationMatches(RadioModulationType local, dis.ModulationType remote) {
+    final l = _getDisModulationType(local);
+    return l.major == remote.major &&
+        l.detail == remote.detail &&
+        l.radioSystem == remote.radioSystem &&
+        l.spreadSpectrum == remote.spreadSpectrum;
+  }
+
+  _CryptoOutcome _evaluateCrypto(RadioConfig radio, _RemoteTxState remote) {
+    final localHasCrypto = radio.cryptoSystem != DisConstants.cryptoSystemNone;
+    final remoteHasCrypto = remote.cryptoSystem != DisConstants.cryptoSystemNone;
+
+    // Both clear — perfect interop
+    if (!localHasCrypto && !remoteHasCrypto) return _CryptoOutcome.pass;
+
+    // Both encrypted, same system and key — perfect match
+    if (localHasCrypto &&
+        remoteHasCrypto &&
+        radio.cryptoSystem == remote.cryptoSystem &&
+        radio.cryptoKeyId == remote.cryptoKeyId) return _CryptoOutcome.pass;
+
+    // Receiver is in clear mode, sender is encrypted — secure leakage (raw noise)
+    if (!localHasCrypto && remoteHasCrypto) return _CryptoOutcome.rawLeakage;
+
+    // All other cases: crypto mismatch or plain-text intrusion — mute
+    return _CryptoOutcome.muted;
   }
 
   dis.ModulationType _getDisModulationType(RadioModulationType mod) {

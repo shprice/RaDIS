@@ -192,17 +192,17 @@ class _IntercomConfigScreenState extends State<IntercomConfigScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: _Field(
-                    label: 'Station Name (UINT8)',
+                    label: 'Source Channel ID (UINT16)',
                     child: TextFormField(
-                      initialValue: _intercom.stationName.toString(),
+                      initialValue: _intercom.sourceChannelId.toString(),
                       style: _inputStyle,
                       decoration: _inputDec('0'),
                       keyboardType: TextInputType.number,
                       inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       onChanged: (v) {
                         final n = int.tryParse(v);
-                        if (n != null && n >= 0 && n <= 255) {
-                          _update(_intercom.copyWith(stationName: n));
+                        if (n != null && n >= 0 && n <= 65535) {
+                          _update(_intercom.copyWith(sourceChannelId: n));
                         }
                       },
                     ),
