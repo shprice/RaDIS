@@ -32,12 +32,14 @@ class IntercomCard extends StatelessWidget {
     final intercomSupported = dis.supportsIntercomFor(intercom.id);
 
     final isDuplicate = intercom.enabled &&
-        rp.intercoms.any((other) =>
-            other.id != intercom.id &&
-            other.enabled &&
-            other.entityId == intercom.entityId &&
-            other.communicationsDeviceId == intercom.communicationsDeviceId &&
-            other.sourceChannelId == intercom.sourceChannelId);
+        (rp.intercoms.any((other) =>
+                other.id != intercom.id &&
+                other.enabled &&
+                other.entityId == intercom.entityId &&
+                other.communicationsDeviceId == intercom.communicationsDeviceId &&
+                other.sourceChannelId == intercom.sourceChannelId) ||
+            dis.hasRemoteIntercomConflict(
+                intercom.entityId, intercom.communicationsDeviceId, intercom.sourceChannelId));
 
     return Card(
       child: Padding(
@@ -517,7 +519,8 @@ class _DuplicateWarningChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Two or more intercoms share the same Entity ID, Intercom ID,\n'
+      message: 'Intercom ID conflict detected (local or on the network).\n'
+          'Another intercom shares the same Entity ID, Intercom ID,\n'
           'and Source Channel ID. Only one will properly send/receive.',
       preferBelow: false,
       child: Container(

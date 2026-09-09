@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import '../dis/constants.dart';
@@ -104,6 +105,14 @@ class DisProvider extends ChangeNotifier {
   // Keyed by "siteId_appId_entityNum_deviceId" — caches sourceChannelId from
   // received IntercomControlPdus so Signal PDUs can be channel-filtered.
   final Map<String, _RemoteIntercomState> _remoteIntercomStates = {};
+  // Conflict detection: source IPs seen per entity_radio / entity_device key.
+  // Values track last-seen time (for TX) or (channelId, last-seen) (for IC).
+  // Entries expire after _conflictTimeoutSeconds and trigger notifyListeners.
+  static const _conflictTimeoutSeconds = 10;
+  final Map<String, Map<String, DateTime>> _remoteTxSourceIps = {};
+  final Map<String, Map<String, (int, DateTime)>> _remoteIcSourceIps = {};
+  Set<String> _localIps = {};
+  final Map<String, StreamSubscription> _srcSubscriptions = {};
 
   bool _connected = false;
   AppSettings? _settings;
@@ -117,6 +126,21 @@ class DisProvider extends ChangeNotifier {
   int _packetsRx = 0;
   int _packetsTx = 0;
   DateTime? _connectedAt;
+
+  DisProvider() {
+    _loadLocalIps();
+  }
+
+  Future<void> _loadLocalIps() async {
+    try {
+      final interfaces = await NetworkInterface.list();
+      _localIps = {
+        ...interfaces.expand((i) => i.addresses).map((a) => a.address),
+        '127.0.0.1',
+        '::1',
+      };
+    } catch (_) {}
+  }
 
   bool get connected => _connected;
   int get packetsRx => _packetsRx;
@@ -294,6 +318,8 @@ class DisProvider extends ChangeNotifier {
       _radioNetworks[radio.id] = network;
       _rxSubscriptions[radio.id] =
           network.receivedPdus.listen((pdu) => _handlePduForRadio(pdu, radio.id));
+      _srcSubscriptions[radio.id] =
+          network.receivedPdusWithSource.listen((r) => _trackTransmitterSource(r.$1, r.$2));
     } catch (e) {
       print('DisProvider: radio "${radio.name}" network error: $e');
       network.dispose();
@@ -307,6 +333,8 @@ class DisProvider extends ChangeNotifier {
       _intercomNetworks[ic.id] = network;
       _rxSubscriptions['ic_${ic.id}'] =
           network.receivedPdus.listen((pdu) => _handlePduForIntercom(pdu, ic.id));
+      _srcSubscriptions['ic_${ic.id}'] =
+          network.receivedPdusWithSource.listen((r) => _trackIntercomSource(r.$1, r.$2));
     } catch (e) {
       print('DisProvider: intercom "${ic.name}" network error: $e');
       network.dispose();
@@ -315,6 +343,7 @@ class DisProvider extends ChangeNotifier {
 
   Future<void> _stopRadioNetwork(String radioId) async {
     await _rxSubscriptions.remove(radioId)?.cancel();
+    await _srcSubscriptions.remove(radioId)?.cancel();
     final net = _radioNetworks.remove(radioId);
     if (net != null) {
       await net.stop();
@@ -324,6 +353,7 @@ class DisProvider extends ChangeNotifier {
 
   Future<void> _stopIntercomNetwork(String intercomId) async {
     await _rxSubscriptions.remove('ic_$intercomId')?.cancel();
+    await _srcSubscriptions.remove('ic_$intercomId')?.cancel();
     final net = _intercomNetworks.remove(intercomId);
     if (net != null) {
       await net.stop();
@@ -686,6 +716,7 @@ class DisProvider extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   void _sendHeartbeats() {
+    _purgeStaleConflicts();
     for (final radio in _radios) {
       if (!radio.enabled) continue;
       final txState = _txActive[radio.id] == true
@@ -1057,6 +1088,55 @@ class DisProvider extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  void _trackTransmitterSource(dynamic pdu, String sourceIp) {
+    if (pdu is! dis.TransmitterPdu) return;
+    final key =
+        '${pdu.entityId.siteId}_${pdu.entityId.applicationId}_${pdu.entityId.entityNumber}_${pdu.radioId}';
+    _remoteTxSourceIps.putIfAbsent(key, () => {})[sourceIp] = DateTime.now();
+  }
+
+  void _trackIntercomSource(dynamic pdu, String sourceIp) {
+    if (pdu is! IntercomControlPdu) return;
+    final key =
+        '${pdu.sourceEntityId.siteId}_${pdu.sourceEntityId.applicationId}_${pdu.sourceEntityId.entityNumber}_${pdu.sourceCommunicationsDeviceId}';
+    _remoteIcSourceIps.putIfAbsent(key, () => {})[sourceIp] = (pdu.sourceLineId, DateTime.now());
+  }
+
+  void _purgeStaleConflicts() {
+    final cutoff = DateTime.now().subtract(const Duration(seconds: _conflictTimeoutSeconds));
+    bool changed = false;
+    for (final key in _remoteTxSourceIps.keys.toList()) {
+      final before = _remoteTxSourceIps[key]!.length;
+      _remoteTxSourceIps[key]!.removeWhere((_, t) => t.isBefore(cutoff));
+      if (_remoteTxSourceIps[key]!.isEmpty) _remoteTxSourceIps.remove(key);
+      if ((_remoteTxSourceIps[key]?.length ?? 0) != before) changed = true;
+    }
+    for (final key in _remoteIcSourceIps.keys.toList()) {
+      final before = _remoteIcSourceIps[key]!.length;
+      _remoteIcSourceIps[key]!.removeWhere((_, v) => v.$2.isBefore(cutoff));
+      if (_remoteIcSourceIps[key]!.isEmpty) _remoteIcSourceIps.remove(key);
+      if ((_remoteIcSourceIps[key]?.length ?? 0) != before) changed = true;
+    }
+    if (changed) notifyListeners();
+  }
+
+  bool hasRemoteTransmitterConflict(EntityId entityId, int radioId) {
+    final key = '${entityId.siteId}_${entityId.applicationId}_${entityId.entityNumber}_$radioId';
+    final sources = _remoteTxSourceIps[key];
+    if (sources == null) return false;
+    final cutoff = DateTime.now().subtract(const Duration(seconds: _conflictTimeoutSeconds));
+    return sources.entries.any((e) => !_localIps.contains(e.key) && e.value.isAfter(cutoff));
+  }
+
+  bool hasRemoteIntercomConflict(EntityId entityId, int deviceId, int sourceChannelId) {
+    final key = '${entityId.siteId}_${entityId.applicationId}_${entityId.entityNumber}_$deviceId';
+    final byIp = _remoteIcSourceIps[key];
+    if (byIp == null) return false;
+    final cutoff = DateTime.now().subtract(const Duration(seconds: _conflictTimeoutSeconds));
+    return byIp.entries.any((e) =>
+        !_localIps.contains(e.key) && e.value.$1 == sourceChannelId && e.value.$2.isAfter(cutoff));
   }
 
   Uint8List _swapBytes16(Uint8List src) {

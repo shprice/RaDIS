@@ -51,6 +51,7 @@ class DisNetwork {
   RawDatagramSocket? _socket;
   DisNetworkConfig? _config;
   final _controller = StreamController<dynamic>.broadcast();
+  final _sourceController = StreamController<(dynamic, String)>.broadcast();
   bool _running = false;
 
   int _packetsSent = 0;
@@ -61,6 +62,7 @@ class DisNetwork {
   int get packetsSent => _packetsSent;
   int get packetsReceived => _packetsReceived;
   Stream<dynamic> get receivedPdus => _controller.stream;
+  Stream<(dynamic, String)> get receivedPdusWithSource => _sourceController.stream;
 
   Future<void> start(DisNetworkConfig config) async {
     await stop();
@@ -102,7 +104,7 @@ class DisNetwork {
       if (event == RawSocketEvent.read) {
         final datagram = _socket!.receive();
         if (datagram != null) {
-          _handleReceived(datagram.data);
+          _handleReceived(datagram.data, datagram.address.address);
         }
       }
     });
@@ -138,7 +140,7 @@ class DisNetwork {
   void sendIntercomSignal(IntercomSignalPdu pdu) => _send(pdu.encode());
   void sendIntercomControl(IntercomControlPdu pdu) => _send(pdu.encode());
 
-  void _handleReceived(Uint8List data) {
+  void _handleReceived(Uint8List data, String sourceIp) {
     if (data.length < DisConstants.pduHeaderSize) return;
     _packetsReceived++;
 
@@ -171,6 +173,7 @@ class DisNetwork {
 
       if (pdu != null) {
         _controller.add(pdu);
+        _sourceController.add((pdu, sourceIp));
       }
     } catch (e) {
       print('DIS receive error: $e');
@@ -180,5 +183,6 @@ class DisNetwork {
   void dispose() {
     stop();
     _controller.close();
+    _sourceController.close();
   }
 }

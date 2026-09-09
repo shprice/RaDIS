@@ -112,29 +112,33 @@ class _FrequencyDisplayState extends State<FrequencyDisplay> {
           ],
         ),
         const SizedBox(height: 3),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _UnitPills(
-              selected: _unit,
-              onSelected: (u) => setState(() => _unit = u),
-              compact: widget.compact,
-            ),
-            if (_interactive) ...[
-              SizedBox(width: widget.compact ? 4 : 8),
-              GestureDetector(
-                onTap: _openKeypad,
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: _kGreenVeryDim),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                  child: const Icon(Icons.dialpad, size: 10, color: _kGreenVeryDim),
-                ),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _UnitPills(
+                selected: _unit,
+                onSelected: (u) => setState(() => _unit = u),
+                compact: widget.compact,
               ),
+              if (_interactive) ...[
+                SizedBox(width: widget.compact ? 4 : 8),
+                GestureDetector(
+                  onTap: _openKeypad,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: _kGreenVeryDim),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: const Icon(Icons.dialpad, size: 10, color: _kGreenVeryDim),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ],
     );

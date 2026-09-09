@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
@@ -341,16 +342,15 @@ class RadioProvider extends ChangeNotifier {
 
   Future<String?> exportToFile() async {
     try {
-      final path = await FilePicker.platform.saveFile(
+      final content = const JsonEncoder.withIndent('  ').convert(exportConfig());
+      await FilePicker.saveFile(
         dialogTitle: 'Export RaDIS Configuration',
         fileName: 'radis_config.json',
+        bytes: Uint8List.fromList(utf8.encode(content)),
+        mimeType: 'application/json',
         type: FileType.custom,
         allowedExtensions: ['json'],
       );
-      if (path == null) return null;
-      final file = File(path);
-      await file.writeAsString(
-          const JsonEncoder.withIndent('  ').convert(exportConfig()));
       return null;
     } catch (e) {
       return e.toString();
@@ -359,15 +359,14 @@ class RadioProvider extends ChangeNotifier {
 
   Future<String?> importFromFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final file = await FilePicker.pickFile(
         dialogTitle: 'Import RaDIS Configuration',
         type: FileType.custom,
         allowedExtensions: ['json'],
-        allowMultiple: false,
       );
-      if (result == null || result.files.isEmpty) return null;
+      if (file == null) return null;
 
-      final path = result.files.single.path;
+      final path = file.path;
       if (path == null) return 'Could not access file path.';
 
       final content = await File(path).readAsString();
@@ -428,15 +427,15 @@ class RadioProvider extends ChangeNotifier {
 
   Future<String?> exportChannelsToFile() async {
     try {
-      final path = await FilePicker.platform.saveFile(
+      final content = const JsonEncoder.withIndent('  ').convert(_channelsExportMap());
+      await FilePicker.saveFile(
         dialogTitle: 'Export Channel List',
         fileName: 'channels.json',
+        bytes: Uint8List.fromList(utf8.encode(content)),
+        mimeType: 'application/json',
         type: FileType.custom,
         allowedExtensions: ['json'],
       );
-      if (path == null) return null;
-      await File(path).writeAsString(
-          const JsonEncoder.withIndent('  ').convert(_channelsExportMap()));
       return null;
     } catch (e) {
       return e.toString();
@@ -445,14 +444,13 @@ class RadioProvider extends ChangeNotifier {
 
   Future<String?> importChannelsFromFile() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final file = await FilePicker.pickFile(
         dialogTitle: 'Import Channel List',
         type: FileType.custom,
         allowedExtensions: ['json'],
-        allowMultiple: false,
       );
-      if (result == null || result.files.isEmpty) return null;
-      final path = result.files.single.path;
+      if (file == null) return null;
+      final path = file.path;
       if (path == null) return 'Could not access file path.';
 
       final content = await File(path).readAsString();

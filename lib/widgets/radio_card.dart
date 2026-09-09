@@ -38,11 +38,12 @@ class RadioCard extends StatelessWidget {
     final muted = disProvider.isRadioMuted(radio.id);
 
     final isDuplicate = radio.enabled &&
-        radioProvider.radios.any((r) =>
-            r.id != radio.id &&
-            r.enabled &&
-            r.entityId == radio.entityId &&
-            r.radioNumber == radio.radioNumber);
+        (radioProvider.radios.any((r) =>
+                r.id != radio.id &&
+                r.enabled &&
+                r.entityId == radio.entityId &&
+                r.radioNumber == radio.radioNumber) ||
+            disProvider.hasRemoteTransmitterConflict(radio.entityId, radio.radioNumber));
 
     return Card(
       child: Padding(
@@ -1474,7 +1475,8 @@ class _DuplicateWarningChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Entity ID and Radio ID are shared with another radio.\n'
+      message: 'Entity ID and Radio ID conflict detected.\n'
+          'Another radio (local or on the network) shares this identity.\n'
           'DIS cannot distinguish between them — PDUs may be filtered or ignored.',
       preferBelow: false,
       decoration: BoxDecoration(
