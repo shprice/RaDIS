@@ -1,6 +1,6 @@
 <img width="400" alt="radis-icon-lockup-dark_1" src="https://github.com/user-attachments/assets/28e457e9-cfea-4d92-9294-9c70db740023" />
 
-# DIS Radio — IEEE 1278 Radio Communications Tool
+# An opensource multi-platform DIS Radio
 
 A multi-platform desktop application for Windows and Linux implementing the IEEE 1278 DIS (Distributed Interactive Simulation) radio communications protocol. Written in Flutter/Dart with full DIS PDU encode/decode, real-time G.711 audio, and a dark military-themed interface.
 
@@ -91,29 +91,19 @@ lib/
 
 ## DIS PDU Support
 
-| PDU Type | Number | Direction | Notes |
-|---|---|---|---|
-| Transmitter | 25 | TX/RX | Frequency, modulation, crypto fields |
-| Signal | 26 | TX/RX | G.711 / CVSD / PCM audio payload |
-| Receiver | 27 | TX | State reporting |
-| Intercom Signal | 31 | TX/RX | Audio with source channel filtering |
-| Intercom Control | 32 | TX/RX | PTT state, channel assignment |
+| PDU Type | 
+|---|
+| Transmitter |
+| Signal | 
+| Receiver |
+| Intercom Signal | 
+| Intercom Control |
 
 ---
 
 ## Crypto / Modulation Interoperability
 
-Signal PDUs are filtered per-radio using the full IEEE 1278.1 receiver model:
-
-| Scenario | Local Crypto | Remote Crypto | Key Match | Result |
-|---|---|---|---|---|
-| Perfect Match | None | None | — | ✅ Clear audio |
-| Perfect Match | Set | Set | ✅ Yes | ✅ Clear audio |
-| Crypto Mismatch | Set | Set | ❌ No | 🔇 Muted |
-| Plain Text Intrusion | None | Set | — | 🔇 Muted |
-| Secure Leakage | Set | None | — | 📻 Raw noise |
-
-Modulation type (spread spectrum, major, detail, radio system) must also match for a Signal PDU to be decoded.
+Signal PDUs are filtered per-radio using the full IEEE 1278.1 receiver model.
 
 ---
 
