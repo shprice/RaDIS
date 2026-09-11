@@ -4,6 +4,8 @@
 
 A multi-platform desktop application for Windows and Linux implementing the IEEE 1278 DIS (Distributed Interactive Simulation) radio communications protocol. Written in Flutter/Dart with full DIS PDU encode/decode, real-time G.711 audio, and a dark military-themed interface.
 
+<img width="750" alt="Screenshot 2026-09-11 114018" src="https://github.com/user-attachments/assets/926b674a-8c7f-4140-83b4-58738beb07cc" />
+
 ---
 
 ## Features
