@@ -68,15 +68,13 @@ class DisNetwork {
     await stop();
     _config = config;
 
-    // Bind multicast sockets to the group address so the OS only delivers
-    // packets destined for that group — prevents broadcast leakage into a
-    // multicast socket that would otherwise occur with 0.0.0.0 binding.
-    final bindAddress = InternetAddress(
-      config.useMulticast ? config.multicastGroup : config.localAddress,
-    );
-
+    // Bind to the configured local address (0.0.0.0 by default).
+    // For multicast, joinMulticast() below handles group membership — the OS
+    // delivers only packets for that group, so 0.0.0.0 binding is safe and
+    // required on Linux (binding to the multicast group address itself
+    // prevents outgoing packets from acquiring a valid source address).
     _socket = await RawDatagramSocket.bind(
-      bindAddress,
+      InternetAddress(config.localAddress),
       config.port,
       reuseAddress: true,
       reusePort: Platform.isLinux,
