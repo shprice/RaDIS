@@ -557,6 +557,7 @@ class DisProvider extends ChangeNotifier {
 
   void _onAudioCaptured(
       String radioId, Uint8List pcmData, RadioConfig radio) {
+    print('DisProvider: audio chunk ${pcmData.length}B  txActive=${_txActive[radioId]}  vox=${radio.voxEnabled}  radio=${radio.name}');
     if (radio.voxEnabled) {
       final vox = _voxDetectors.putIfAbsent(
         radioId,
@@ -635,6 +636,7 @@ class DisProvider extends ChangeNotifier {
       exerciseId: radio.exerciseId,
       protocolVersion: radio.disProtocolVersion,
     );
+    print('DisProvider: sending Signal PDU  radio=${radio.name}  bytes=${encoded.length}');
     _radioNetworks[radioId]?.sendSignal(signalPdu);
     _packetsTx++;
   }

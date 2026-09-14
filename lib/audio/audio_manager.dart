@@ -173,6 +173,7 @@ class AudioManager {
         } catch (_) {}
       }
 
+      print('AudioManager: starting capture for $radioId  device=${inputDevice?.id ?? "default"}  rate=$sampleRate');
       final stream = await recorder.startStream(RecordConfig(
         encoder: AudioEncoder.pcm16bits,
         sampleRate: sampleRate,
@@ -182,10 +183,16 @@ class AudioManager {
         // before forwarding so each Signal PDU carries ~100 ms of audio.
         streamBufferSize: sampleRate * 2 ~/ 20,
       ));
+      print('AudioManager: capture stream open for $radioId');
 
+      int _chunkCount = 0;
       final sub = stream.listen(
         (chunk) {
           if (!session.active) return;
+          _chunkCount++;
+          if (_chunkCount <= 3) {
+            print('AudioManager: chunk #$_chunkCount for $radioId  bytes=${chunk.length}');
+          }
           final rms = _computeRms(chunk);
           session.levelController.add(rms);
 
