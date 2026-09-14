@@ -204,11 +204,12 @@ class AudioManager {
             onData(combined);
           }
         },
-        onError: (_) {},
+        onError: (e) => print('AudioManager: capture stream error for $radioId: $e'),
         cancelOnError: false,
       );
       _captureSubscriptions[radioId] = sub;
     } catch (e) {
+      print('AudioManager: failed to start capture for $radioId: $e');
       session.active = false;
       await recorder.dispose();
       _recorders.remove(radioId);

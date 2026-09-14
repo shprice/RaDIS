@@ -403,6 +403,7 @@ class DisProvider extends ChangeNotifier {
         },
       );
     } catch (e) {
+      print('DisProvider: startTransmit capture failed for radio "${radio.name}": $e');
       _txActive[radioId] = false;
       _sendTransmitterPdu(radio, DisConstants.transmitterStateOnNotTransmitting);
       notifyListeners();
@@ -444,6 +445,7 @@ class DisProvider extends ChangeNotifier {
         (pcm) => _onIntercomAudioCaptured(intercomId, pcm, intercom),
       );
     } catch (e) {
+      print('DisProvider: startIntercomTransmit capture failed for intercom "${intercom.name}": $e');
       _txActive[intercomId] = false;
       _sendIntercomControlPdu(intercom, transmitting: false);
       notifyListeners();
@@ -525,6 +527,7 @@ class DisProvider extends ChangeNotifier {
         },
       );
     } catch (e) {
+      print('DisProvider: pre-capture failed for radio "${radio.name}": $e');
       _autoTxIds.remove(radio.id);
     }
   }
@@ -543,6 +546,7 @@ class DisProvider extends ChangeNotifier {
         },
       );
     } catch (e) {
+      print('DisProvider: pre-capture failed for intercom "${intercom.name}": $e');
       _autoTxIds.remove(intercom.id);
     }
   }

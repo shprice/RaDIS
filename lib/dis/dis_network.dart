@@ -80,6 +80,12 @@ class DisNetwork {
       reusePort: Platform.isLinux,
     );
 
+    if (!config.useMulticast) {
+      // Required on Linux to send to broadcast addresses (255.255.255.255 / subnet
+      // broadcast). Without SO_BROADCAST the kernel rejects the send with EACCES.
+      _socket!.broadcastEnabled = true;
+    }
+
     if (config.useMulticast) {
       final multicastAddr = InternetAddress(config.multicastGroup);
       final iface = config.networkInterface != null
