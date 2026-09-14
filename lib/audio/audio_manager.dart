@@ -7,24 +7,37 @@ import 'package:record/record.dart';
 import 'audio_device_model.dart';
 
 // How many ms of audio to accumulate before triggering playback.
-// Too low = choppy gaps; too high = noticeable latency.
 const _kJitterTargetMs = 200;
 
-// Minimum TX chunk size in bytes (16-bit PCM). Accumulate until we have
-// at least this much before forwarding to the Signal PDU encoder.
-// At 8kHz mono, 100ms = 1600 bytes; at 16kHz = 3200 bytes.
+// Minimum TX chunk size in bytes (16-bit PCM). At 8kHz mono, 100ms = 1600 bytes.
 const _kTxTargetBytes = 1600;
 
-class _CaptureSession {
+// One subscriber per radio/intercom ID sharing a recorder.
+class _CaptureSubscriber {
   final StreamController<double> levelController;
-  bool active;
-  // TX accumulation buffer — collects PCM until _kTxTargetBytes reached.
+  final void Function(Uint8List) onData;
   final List<Uint8List> txChunks = [];
   int txTotalBytes = 0;
 
-  _CaptureSession()
-      : levelController = StreamController<double>.broadcast(),
-        active = false;
+  _CaptureSubscriber({required this.onData})
+      : levelController = StreamController<double>.broadcast();
+
+  void feed(Uint8List chunk, double rms) {
+    levelController.add(rms);
+    txChunks.add(chunk);
+    txTotalBytes += chunk.length;
+    if (txTotalBytes >= _kTxTargetBytes) {
+      final combined = Uint8List(txTotalBytes);
+      int offset = 0;
+      for (final c in txChunks) {
+        combined.setRange(offset, offset + c.length, c);
+        offset += c.length;
+      }
+      txChunks.clear();
+      txTotalBytes = 0;
+      onData(combined);
+    }
+  }
 
   void dispose() {
     levelController.close();
@@ -33,8 +46,43 @@ class _CaptureSession {
   }
 }
 
-// Per-radio RX jitter buffer — smooths choppy playback caused by network
-// jitter and the latency of loadMem+play calls.
+// One shared AudioRecorder per (deviceId, sampleRate) combination.
+// All radios/intercoms using the same device+rate share a single parecord
+// process on Linux, eliminating device contention.
+class _SharedRecorder {
+  final AudioRecorder recorder;
+  StreamSubscription<Uint8List>? subscription;
+  final Map<String, _CaptureSubscriber> subscribers = {};
+  int _chunkCount = 0;
+
+  _SharedRecorder(this.recorder);
+
+  void dispatchChunk(Uint8List chunk, double Function(Uint8List) computeRms) {
+    _chunkCount++;
+    final rms = computeRms(chunk);
+    if (_chunkCount <= 3) {
+      print('AudioManager: shared chunk #$_chunkCount  bytes=${chunk.length}  subscribers=${subscribers.length}');
+    }
+    for (final sub in subscribers.values) {
+      sub.feed(chunk, rms);
+    }
+  }
+
+  Future<void> dispose() async {
+    await subscription?.cancel();
+    subscription = null;
+    try {
+      await recorder.stop();
+    } catch (_) {}
+    await recorder.dispose();
+    for (final s in subscribers.values) {
+      s.dispose();
+    }
+    subscribers.clear();
+  }
+}
+
+// Per-radio RX jitter buffer — smooths choppy playback caused by network jitter.
 class _RxBuffer {
   final List<Uint8List> chunks = [];
   int totalBytes = 0;
@@ -72,14 +120,15 @@ class AudioManager {
   AudioManager._();
 
   bool _initialized = false;
-  final Map<String, _CaptureSession> _captureSessions = {};
-  final Map<String, AudioRecorder> _recorders = {};
-  final Map<String, StreamSubscription<Uint8List>> _captureSubscriptions = {};
+
+  // keyed by "deviceId:sampleRate" — one recorder shared across all subscribers
+  final Map<String, _SharedRecorder> _sharedRecorders = {};
+  // radioId -> shared recorder key (reverse index for fast lookup)
+  final Map<String, String> _radioToKey = {};
+
   final Map<String, _RxBuffer> _rxBuffers = {};
   final Map<String, StreamController<double>> _rxLevelControllers = {};
 
-  // Monotonic counter ensures each loadMem call uses a unique key so
-  // flutter_soloud never returns a stale cached AudioSource.
   int _chunkSeq = 0;
 
   Future<void> initialize() async {
@@ -89,9 +138,11 @@ class AudioManager {
   }
 
   Future<void> dispose() async {
-    for (final id in List.of(_captureSessions.keys)) {
-      await stopCapture(id);
+    for (final sr in List.of(_sharedRecorders.values)) {
+      await sr.dispose();
     }
+    _sharedRecorders.clear();
+    _radioToKey.clear();
     _rxBuffers.clear();
     for (final c in _rxLevelControllers.values) {
       c.close();
@@ -145,9 +196,11 @@ class AudioManager {
 
   /// Start microphone capture for [radioId].
   ///
-  /// [onData] receives accumulated PCM16 chunks of at least [_kTxTargetBytes]
-  /// bytes, reducing the number of Signal PDUs sent and ensuring each PDU
-  /// carries a meaningful amount of audio.
+  /// If another radio/intercom is already capturing from the same
+  /// [deviceId]+[sampleRate] combination, the existing recorder is reused and
+  /// [onData] is added as an additional subscriber — no second parecord process
+  /// is spawned. This fixes the Linux device-contention problem where only one
+  /// parecord process receives audio at a time.
   Future<void> startCapture(
     String radioId,
     String? deviceId,
@@ -157,12 +210,23 @@ class AudioManager {
     if (!_initialized) await initialize();
     await stopCapture(radioId);
 
-    final recorder = AudioRecorder();
-    _recorders[radioId] = recorder;
+    final key = '${deviceId ?? "default"}:$sampleRate';
+    _radioToKey[radioId] = key;
 
-    final session = _CaptureSession();
-    _captureSessions[radioId] = session;
-    session.active = true;
+    final subscriber = _CaptureSubscriber(onData: onData);
+
+    if (_sharedRecorders.containsKey(key)) {
+      // Reuse existing recorder — just add this subscriber.
+      _sharedRecorders[key]!.subscribers[radioId] = subscriber;
+      print('AudioManager: joined shared capture $key for $radioId  (${_sharedRecorders[key]!.subscribers.length} subscribers)');
+      return;
+    }
+
+    // No existing recorder for this device+rate — create one.
+    final recorder = AudioRecorder();
+    final shared = _SharedRecorder(recorder);
+    shared.subscribers[radioId] = subscriber;
+    _sharedRecorders[key] = shared;
 
     try {
       InputDevice? inputDevice;
@@ -173,78 +237,75 @@ class AudioManager {
         } catch (_) {}
       }
 
-      print('AudioManager: starting capture for $radioId  device=${inputDevice?.id ?? "default"}  rate=$sampleRate');
+      print('AudioManager: starting capture $key  device=${inputDevice?.id ?? "default"}  rate=$sampleRate');
       final stream = await recorder.startStream(RecordConfig(
         encoder: AudioEncoder.pcm16bits,
         sampleRate: sampleRate,
         numChannels: 1,
         device: inputDevice,
-        // Request ~50ms chunks from the OS; accumulate to _kTxTargetBytes
-        // before forwarding so each Signal PDU carries ~100 ms of audio.
         streamBufferSize: sampleRate * 2 ~/ 20,
       ));
-      print('AudioManager: capture stream open for $radioId');
+      print('AudioManager: capture stream open for $key');
 
-      int _chunkCount = 0;
-      final sub = stream.listen(
+      shared.subscription = stream.listen(
         (chunk) {
-          if (!session.active) return;
-          _chunkCount++;
-          if (_chunkCount <= 3) {
-            print('AudioManager: chunk #$_chunkCount for $radioId  bytes=${chunk.length}');
-          }
-          final rms = _computeRms(chunk);
-          session.levelController.add(rms);
-
-          // Accumulate until we have a full TX target chunk.
-          session.txChunks.add(chunk);
-          session.txTotalBytes += chunk.length;
-          if (session.txTotalBytes >= _kTxTargetBytes) {
-            final combined = Uint8List(session.txTotalBytes);
-            int offset = 0;
-            for (final c in session.txChunks) {
-              combined.setRange(offset, offset + c.length, c);
-              offset += c.length;
-            }
-            session.txChunks.clear();
-            session.txTotalBytes = 0;
-            onData(combined);
-          }
+          if (!_sharedRecorders.containsKey(key)) return;
+          shared.dispatchChunk(chunk, _computeRms);
         },
-        onError: (e) => print('AudioManager: capture stream error for $radioId: $e'),
+        onError: (e) => print('AudioManager: capture stream error for $key: $e'),
         cancelOnError: false,
       );
-      _captureSubscriptions[radioId] = sub;
     } catch (e) {
-      print('AudioManager: failed to start capture for $radioId: $e');
-      session.active = false;
-      await recorder.dispose();
-      _recorders.remove(radioId);
-      _captureSessions.remove(radioId)?.dispose();
+      print('AudioManager: failed to start capture for $key: $e');
+      _sharedRecorders.remove(key);
+      _radioToKey.remove(radioId);
+      await shared.dispose();
     }
   }
 
   Future<void> stopCapture(String radioId) async {
-    final sub = _captureSubscriptions.remove(radioId);
-    await sub?.cancel();
+    final key = _radioToKey.remove(radioId);
+    if (key == null) return;
 
-    final session = _captureSessions.remove(radioId);
-    session?.active = false;
-    session?.dispose();
+    final shared = _sharedRecorders[key];
+    if (shared == null) return;
 
-    final recorder = _recorders.remove(radioId);
-    try {
-      await recorder?.stop();
-    } catch (_) {}
-    await recorder?.dispose();
+    shared.subscribers[radioId]?.dispose();
+    shared.subscribers.remove(radioId);
+
+    if (shared.subscribers.isEmpty) {
+      _sharedRecorders.remove(key);
+      await shared.dispose();
+      print('AudioManager: stopped shared capture $key (no subscribers left)');
+    } else {
+      print('AudioManager: removed subscriber $radioId from $key  (${shared.subscribers.length} remaining)');
+    }
   }
 
-  /// Queue [pcmBytes] for [radioId].  Audio is accumulated into a jitter
+  Stream<double> inputLevel(String radioId) {
+    final key = _radioToKey[radioId];
+    if (key == null) return const Stream.empty();
+    return _sharedRecorders[key]?.subscribers[radioId]?.levelController.stream ??
+        const Stream.empty();
+  }
+
+  void updateRxLevel(String radioId, double level) {
+    final ctrl = _rxLevelControllers.putIfAbsent(
+      radioId,
+      () => StreamController<double>.broadcast(),
+    );
+    if (!ctrl.isClosed) ctrl.add(level);
+  }
+
+  Stream<double> rxLevel(String radioId) {
+    return (_rxLevelControllers.putIfAbsent(
+      radioId,
+      () => StreamController<double>.broadcast(),
+    )).stream;
+  }
+
+  /// Queue [pcmBytes] for [radioId]. Audio is accumulated into a jitter
   /// buffer and played once [_kJitterTargetMs] ms of audio is available.
-  ///
-  /// [bitsPerSample] must match the actual sample width: 16 for decoded
-  /// G.711 / raw 16-bit PCM, 8 for 8-bit unsigned PCM.
-  /// [pan] is stereo position: -1.0 = full left, 0.0 = centre, 1.0 = full right.
   Future<void> playAudio(
     String radioId,
     Uint8List pcmBytes,
@@ -299,26 +360,6 @@ class AudioManager {
       final source = await SoLoud.instance.loadMem(key, bytes, autoDispose: true);
       SoLoud.instance.play(source);
     } catch (_) {}
-  }
-
-  Stream<double> inputLevel(String radioId) {
-    return _captureSessions[radioId]?.levelController.stream ??
-        const Stream.empty();
-  }
-
-  void updateRxLevel(String radioId, double level) {
-    final ctrl = _rxLevelControllers.putIfAbsent(
-      radioId,
-      () => StreamController<double>.broadcast(),
-    );
-    if (!ctrl.isClosed) ctrl.add(level);
-  }
-
-  Stream<double> rxLevel(String radioId) {
-    return (_rxLevelControllers.putIfAbsent(
-      radioId,
-      () => StreamController<double>.broadcast(),
-    )).stream;
   }
 
   double _computeRms(Uint8List pcmData) {
