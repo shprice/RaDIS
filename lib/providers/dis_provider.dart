@@ -383,6 +383,7 @@ class DisProvider extends ChangeNotifier {
     if (_txActive[radioId] == true) return;
     final radio = _findRadio(radioId);
     if (radio == null) return;
+    print('DisProvider: startTransmit "${radio.name}"  autoTx=${_autoTxIds.contains(radioId)}  net=${_radioNetworks.containsKey(radioId)}');
 
     _txActive[radioId] = true;
     notifyListeners();
@@ -526,6 +527,7 @@ class DisProvider extends ChangeNotifier {
           _onAudioCaptured(radio.id, pcmData, live);
         },
       );
+      print('DisProvider: pre-capture OK for radio "${radio.name}"');
     } catch (e) {
       print('DisProvider: pre-capture failed for radio "${radio.name}": $e');
       _autoTxIds.remove(radio.id);
@@ -545,6 +547,7 @@ class DisProvider extends ChangeNotifier {
           _onIntercomAudioCaptured(intercom.id, pcm, live);
         },
       );
+      print('DisProvider: pre-capture OK for intercom "${intercom.name}"');
     } catch (e) {
       print('DisProvider: pre-capture failed for intercom "${intercom.name}": $e');
       _autoTxIds.remove(intercom.id);
