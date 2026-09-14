@@ -9,6 +9,7 @@ import '../providers/dis_provider.dart';
 import '../providers/radio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../audio/audio_manager.dart';
+import '../providers/audio_provider.dart';
 import '../theme.dart';
 import 'frequency_display.dart';
 import 'ptt_button.dart';
@@ -70,6 +71,7 @@ class RadioCard extends StatelessWidget {
       rp.getRadioChannel(radio.radioChannelId);
 
   Widget _buildNetDropdown(BuildContext context, RadioProvider rp) {
+    final cx = AppColorsX.of(context);
     final channels = rp.radioChannels;
     final currentCh = _currentChannel(rp);
     final isManual = currentCh == null;
@@ -80,7 +82,7 @@ class RadioCard extends StatelessWidget {
         value: '',
         child: Text(
           'Manual',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textMuted),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: cx.textMuted),
         ),
       ),
       ...channels.map((ch) => DropdownMenuItem<String>(
@@ -99,10 +101,10 @@ class RadioCard extends StatelessWidget {
       height: 28,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0A1A0A),
+        color: cx.pillBg,
         border: Border.all(
           color: isManual
-              ? const Color(0xFF2E2E2E)
+              ? cx.borderSubtle
               : activeColor.withValues(alpha: 0.45),
         ),
         borderRadius: BorderRadius.circular(4),
@@ -115,13 +117,13 @@ class RadioCard extends StatelessWidget {
           icon: Icon(
             Icons.arrow_drop_down,
             size: 16,
-            color: isManual ? AppColors.textMuted : activeColor,
+            color: isManual ? cx.textMuted : activeColor,
           ),
           style: TextStyle(
             fontSize: 12,
-            color: isManual ? AppColors.textMuted : activeColor,
+            color: isManual ? cx.textMuted : activeColor,
           ),
-          dropdownColor: const Color(0xFF0D1A0D),
+          dropdownColor: cx.dropdownBg,
           items: items,
           onChanged: (key) {
             rp.assignRadioChannel(radio.id, key?.isEmpty == true ? null : key);
@@ -142,10 +144,10 @@ class RadioCard extends StatelessWidget {
             children: [
               Text(
                 radio.name.toUpperCase(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.primaryGreen,
+                  color: AppColorsX.of(context).primaryText,
                   letterSpacing: 2,
                 ),
               ),
@@ -165,7 +167,7 @@ class RadioCard extends StatelessWidget {
         const SizedBox(width: 4),
         IconButton(
           icon: const Icon(Icons.settings, size: 16),
-          color: AppColors.textMuted,
+          color: AppColorsX.of(context).textMuted,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(),
           onPressed: onConfigure,
@@ -242,7 +244,7 @@ class RadioCard extends StatelessWidget {
       children: [
         _LabelledMeter(
           label: 'TX',
-          labelColor: txActive ? AppColors.amber : AppColors.textMuted,
+          labelColor: txActive ? AppColorsX.of(context).amberText : AppColorsX.of(context).textMuted,
           levelStream: AudioManager.instance.inputLevel(radio.id),
           threshold: radio.voxThreshold,
           tooltipMessage: 'VOX threshold: ${(radio.voxThreshold * 100).round()}%\nDrag to adjust',
@@ -295,6 +297,7 @@ class RadioCard extends StatelessWidget {
       );
     }
 
+    final cx = AppColorsX.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -308,7 +311,7 @@ class RadioCard extends StatelessWidget {
                   Text('RX',
                       style: TextStyle(
                           fontSize: 9,
-                          color: AppColors.rxGreen.withValues(alpha: 0.7),
+                          color: cx.primaryText.withValues(alpha: 0.7),
                           letterSpacing: 1,
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 2),
@@ -330,7 +333,7 @@ class RadioCard extends StatelessWidget {
                   Text('TX',
                       style: TextStyle(
                           fontSize: 9,
-                          color: AppColors.primaryGreen.withValues(alpha: 0.7),
+                          color: cx.primaryText.withValues(alpha: 0.7),
                           letterSpacing: 1,
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 2),
@@ -412,6 +415,7 @@ class RadioCard extends StatelessWidget {
   }
 
   Widget _buildTxNetDropdown(BuildContext context, RadioProvider rp) {
+    final cx = AppColorsX.of(context);
     final channels = rp.radioChannels;
     final currentCh = rp.getRadioChannel(radio.txRadioChannelId);
     final isManual = currentCh == null;
@@ -421,7 +425,7 @@ class RadioCard extends StatelessWidget {
       DropdownMenuItem(
         value: '',
         child: Text('Manual',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textMuted)),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: cx.textMuted)),
       ),
       ...channels.map((ch) => DropdownMenuItem<String>(
             value: ch.id,
@@ -437,10 +441,10 @@ class RadioCard extends StatelessWidget {
       height: 28,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF0A1A0A),
+        color: cx.pillBg,
         border: Border.all(
           color: isManual
-              ? const Color(0xFF2E2E2E)
+              ? cx.borderSubtle
               : activeColor.withValues(alpha: 0.45),
         ),
         borderRadius: BorderRadius.circular(4),
@@ -452,11 +456,11 @@ class RadioCard extends StatelessWidget {
           isDense: true,
           icon: Icon(Icons.arrow_drop_down,
               size: 16,
-              color: isManual ? AppColors.textMuted : activeColor),
+              color: isManual ? cx.textMuted : activeColor),
           style: TextStyle(
               fontSize: 12,
-              color: isManual ? AppColors.textMuted : activeColor),
-          dropdownColor: const Color(0xFF0D1A0D),
+              color: isManual ? cx.textMuted : activeColor),
+          dropdownColor: cx.dropdownBg,
           items: items,
           onChanged: (key) {
             rp.assignRadioTxChannel(radio.id, key?.isEmpty == true ? null : key);
@@ -480,20 +484,26 @@ class RadioCard extends StatelessWidget {
         // Audio output popup (volume + pan)
         _PopupControl(
           trigger: Tooltip(
-            message: 'Volume / Pan',
+            message: 'Audio',
             child: Icon(
               Icons.tune,
               size: 16,
-              color: AppColors.textMuted,
+              color: AppColorsX.of(context).textMuted,
             ),
           ),
           popupBuilder: (_) => _AudioOutputPopup(
             volume: radio.outputVolume,
             pan: radio.outputPan,
+            inputDeviceId: radio.inputDeviceId,
+            outputDeviceId: radio.outputDeviceId,
             onVolumeChanged: (v) =>
                 radioProvider.updateRadio(radio.copyWith(outputVolume: v)),
             onPanChanged: (v) =>
                 radioProvider.updateRadio(radio.copyWith(outputPan: v)),
+            onInputDeviceChanged: (v) =>
+                radioProvider.updateRadio(radio.copyWith(inputDeviceId: v)),
+            onOutputDeviceChanged: (v) =>
+                radioProvider.updateRadio(radio.copyWith(outputDeviceId: v)),
           ),
         ),
         const SizedBox(width: 6),
@@ -502,9 +512,9 @@ class RadioCard extends StatelessWidget {
           onToggle: () => dis.toggleRadioMute(radio.id),
         ),
         const SizedBox(width: 10),
-        const SizedBox(
+        SizedBox(
           height: 16,
-          child: VerticalDivider(width: 1, color: Color(0xFF333333)),
+          child: VerticalDivider(width: 1, color: AppColorsX.of(context).borderSubtle),
         ),
         const SizedBox(width: 10),
         // Trigger mode selector
@@ -521,7 +531,7 @@ class RadioCard extends StatelessWidget {
         ),
         // Keys pill — only in PTT/latched modes
         if (isPtt) ...[
-          const SizedBox(width: 8),
+          const Spacer(),
           _KeysPill(
             radio: radio,
             assigned: assigned,
@@ -573,12 +583,12 @@ class _PopupControlState extends State<_PopupControl> {
               followerAnchor: Alignment.bottomCenter,
               offset: const Offset(0, -4),
               child: Material(
-                color: const Color(0xFF1A1A1A),
+                color: AppColorsX.of(ctx).surface,
                 elevation: 8,
                 borderRadius: BorderRadius.circular(6),
                 child: Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFF333333)),
+                    border: Border.all(color: AppColorsX.of(ctx).borderSubtle),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: widget.popupBuilder(ctx),
@@ -600,20 +610,28 @@ class _PopupControlState extends State<_PopupControl> {
 }
 
 // ---------------------------------------------------------------------------
-// Audio output popup content (volume + pan sliders)
+// Audio output popup content (volume + pan sliders + device selection)
 // ---------------------------------------------------------------------------
 
 class _AudioOutputPopup extends StatefulWidget {
   final double volume;
   final double pan;
+  final String? inputDeviceId;
+  final String? outputDeviceId;
   final ValueChanged<double> onVolumeChanged;
   final ValueChanged<double> onPanChanged;
+  final ValueChanged<String?> onInputDeviceChanged;
+  final ValueChanged<String?> onOutputDeviceChanged;
 
   const _AudioOutputPopup({
     required this.volume,
     required this.pan,
+    required this.inputDeviceId,
+    required this.outputDeviceId,
     required this.onVolumeChanged,
     required this.onPanChanged,
+    required this.onInputDeviceChanged,
+    required this.onOutputDeviceChanged,
   });
 
   @override
@@ -639,33 +657,121 @@ class _AudioOutputPopupState extends State<_AudioOutputPopup> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _sliderRow(
-            label: 'VOL ${(_volume * 100).round()}%',
-            value: _volume,
-            min: 0,
-            max: 1,
-            onChanged: (v) {
-              setState(() => _volume = v);
-              widget.onVolumeChanged(v);
-            },
+    final cx = AppColorsX.of(context);
+    return Consumer<AudioProvider>(
+      builder: (context, audio, _) {
+        final safeIn = audio.inputDevices.any((d) => d.id == widget.inputDeviceId)
+            ? widget.inputDeviceId
+            : null;
+        final safeOut = audio.outputDevices.any((d) => d.id == widget.outputDeviceId)
+            ? widget.outputDeviceId
+            : null;
+
+        return SizedBox(
+          width: 220,
+          child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _deviceRow(
+                label: 'IN',
+                value: safeIn,
+                items: [
+                  DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Default',
+                        style: TextStyle(fontSize: 10, color: cx.textMuted)),
+                  ),
+                  ...audio.inputDevices.map((d) => DropdownMenuItem<String?>(
+                        value: d.id,
+                        child: Text(d.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10, color: cx.text)),
+                      )),
+                ],
+                onChanged: widget.onInputDeviceChanged,
+                cx: cx,
+              ),
+              const SizedBox(height: 2),
+              _deviceRow(
+                label: 'OUT',
+                value: safeOut,
+                items: [
+                  DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Default',
+                        style: TextStyle(fontSize: 10, color: cx.textMuted)),
+                  ),
+                  ...audio.outputDevices.map((d) => DropdownMenuItem<String?>(
+                        value: d.id,
+                        child: Text(d.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10, color: cx.text)),
+                      )),
+                ],
+                onChanged: widget.onOutputDeviceChanged,
+                cx: cx,
+              ),
+              Divider(height: 10, color: cx.borderSubtle),
+              _sliderRow(
+                label: 'VOL ${(_volume * 100).round()}%',
+                value: _volume,
+                min: 0,
+                max: 1,
+                onChanged: (v) {
+                  setState(() => _volume = v);
+                  widget.onVolumeChanged(v);
+                },
+              ),
+              _sliderRow(
+                label: 'PAN $_panLabel',
+                value: _pan,
+                min: -1,
+                max: 1,
+                onChanged: (v) {
+                  setState(() => _pan = v);
+                  widget.onPanChanged(v);
+                },
+              ),
+            ],
           ),
-          _sliderRow(
-            label: 'PAN $_panLabel',
-            value: _pan,
-            min: -1,
-            max: 1,
-            onChanged: (v) {
-              setState(() => _pan = v);
-              widget.onPanChanged(v);
-            },
           ),
-        ],
-      ),
+        );
+      },
+    );
+  }
+
+  Widget _deviceRow({
+    required String label,
+    required String? value,
+    required List<DropdownMenuItem<String?>> items,
+    required ValueChanged<String?> onChanged,
+    required AppColorsX cx,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 28,
+          child: Text(label, style: TextStyle(fontSize: 9, color: cx.textMuted)),
+        ),
+        SizedBox(
+          width: 152,
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String?>(
+              value: value,
+              isDense: true,
+              isExpanded: true,
+              style: TextStyle(fontSize: 10, color: cx.text),
+              dropdownColor: cx.dropdownBg,
+              items: items,
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -683,11 +789,11 @@ class _AudioOutputPopupState extends State<_AudioOutputPopup> {
           width: 56,
           child: Text(
             label,
-            style: const TextStyle(fontSize: 9, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 9, color: AppColorsX.of(context).textMuted),
           ),
         ),
         SizedBox(
-          width: 120,
+          width: 124,
           height: 28,
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
@@ -785,7 +891,7 @@ class _PulsingMuteButtonState extends State<_PulsingMuteButton>
                   size: 16,
                   color: widget.muted
                       ? Colors.red.shade400
-                      : AppColors.textMuted,
+                      : AppColorsX.of(context).textMuted,
                 ),
               );
             },
@@ -814,6 +920,7 @@ class _PowerPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return Tooltip(
       message: 'Power — click to edit',
       preferBelow: false,
@@ -824,17 +931,13 @@ class _PowerPill extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
             decoration: BoxDecoration(
-              color: const Color(0xFF0A1A0A),
-              border: Border.all(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.5)),
+              color: cx.pillBg,
+              border: Border.all(color: cx.primaryText.withValues(alpha: 0.5)),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
               _label,
-              style: const TextStyle(
-                fontSize: 8,
-                color: AppColors.primaryGreen,
-              ),
+              style: TextStyle(fontSize: 8, color: cx.primaryText),
             ),
           ),
         ),
@@ -887,12 +990,12 @@ class _PowerDialogState extends State<_PowerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return AlertDialog(
-      backgroundColor: const Color(0xFF0D0D0D),
-      title: const Text(
+      title: Text(
         'POWER',
         style: TextStyle(
-          color: AppColors.primaryGreen,
+          color: cx.primaryText,
           fontSize: 13,
           letterSpacing: 2,
           fontWeight: FontWeight.bold,
@@ -903,7 +1006,7 @@ class _PowerDialogState extends State<_PowerDialog> {
         children: [
           TextField(
             controller: _dbmCtrl,
-            style: const TextStyle(color: AppColors.text, fontSize: 13),
+            style: TextStyle(color: cx.text, fontSize: 13),
             decoration: const InputDecoration(
               labelText: 'dBm',
               isDense: true,
@@ -921,7 +1024,7 @@ class _PowerDialogState extends State<_PowerDialog> {
           const SizedBox(height: 8),
           TextField(
             controller: _wCtrl,
-            style: const TextStyle(color: AppColors.text, fontSize: 13),
+            style: TextStyle(color: cx.text, fontSize: 13),
             decoration: const InputDecoration(
               labelText: 'Watts',
               isDense: true,
@@ -947,8 +1050,8 @@ class _PowerDialogState extends State<_PowerDialog> {
             final w = double.tryParse(_wCtrl.text);
             if (w != null && w >= 0) Navigator.pop(context, w);
           },
-          child: const Text('APPLY',
-              style: TextStyle(color: AppColors.primaryGreen)),
+          child: Text('APPLY',
+              style: TextStyle(color: cx.primaryText)),
         ),
       ],
     );
@@ -969,6 +1072,7 @@ class _BandwidthPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return Tooltip(
       message: 'Bandwidth — click to edit',
       preferBelow: false,
@@ -979,17 +1083,13 @@ class _BandwidthPill extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
             decoration: BoxDecoration(
-              color: const Color(0xFF0A1A0A),
-              border: Border.all(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.5)),
+              color: cx.pillBg,
+              border: Border.all(color: cx.primaryText.withValues(alpha: 0.5)),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
               _label,
-              style: const TextStyle(
-                fontSize: 8,
-                color: AppColors.primaryGreen,
-              ),
+              style: TextStyle(fontSize: 8, color: cx.primaryText),
             ),
           ),
         ),
@@ -1034,12 +1134,12 @@ class _BandwidthDialogState extends State<_BandwidthDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return AlertDialog(
-      backgroundColor: const Color(0xFF0D0D0D),
-      title: const Text(
+      title: Text(
         'BANDWIDTH',
         style: TextStyle(
-          color: AppColors.primaryGreen,
+          color: cx.primaryText,
           fontSize: 13,
           letterSpacing: 2,
           fontWeight: FontWeight.bold,
@@ -1048,7 +1148,7 @@ class _BandwidthDialogState extends State<_BandwidthDialog> {
       content: TextField(
         controller: _ctrl,
         autofocus: true,
-        style: const TextStyle(color: AppColors.text, fontSize: 13),
+        style: TextStyle(color: cx.text, fontSize: 13),
         decoration: const InputDecoration(
           labelText: 'Bandwidth (Hz)',
           isDense: true,
@@ -1065,8 +1165,7 @@ class _BandwidthDialogState extends State<_BandwidthDialog> {
             final bw = double.tryParse(_ctrl.text);
             if (bw != null && bw > 0) Navigator.pop(context, bw);
           },
-          child: const Text('APPLY',
-              style: TextStyle(color: AppColors.primaryGreen)),
+          child: Text('APPLY', style: TextStyle(color: cx.primaryText)),
         ),
       ],
     );
@@ -1093,6 +1192,7 @@ class _CryptoPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = _cryptoName(radio.cryptoSystem);
+    final cx = AppColorsX.of(context);
     return Tooltip(
       message: 'Crypto system — click to edit',
       preferBelow: false,
@@ -1103,18 +1203,13 @@ class _CryptoPill extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
             decoration: BoxDecoration(
-              color: const Color(0xFF0A1A0A),
-              border: Border.all(
-                color: AppColors.primaryGreen.withValues(alpha: 0.5),
-              ),
+              color: cx.pillBg,
+              border: Border.all(color: cx.primaryText.withValues(alpha: 0.5)),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
               name,
-              style: const TextStyle(
-                fontSize: 8,
-                color: AppColors.primaryGreen,
-              ),
+              style: TextStyle(fontSize: 8, color: cx.primaryText),
             ),
           ),
         ),
@@ -1163,12 +1258,12 @@ class _CryptoDialogState extends State<_CryptoDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return AlertDialog(
-      backgroundColor: const Color(0xFF0D0D0D),
-      title: const Text(
+      title: Text(
         'CRYPTO',
         style: TextStyle(
-          color: AppColors.primaryGreen,
+          color: cx.primaryText,
           fontSize: 13,
           letterSpacing: 2,
           fontWeight: FontWeight.bold,
@@ -1179,13 +1274,13 @@ class _CryptoDialogState extends State<_CryptoDialog> {
         children: [
           DropdownButtonFormField<int>(
             value: _system,
-            dropdownColor: const Color(0xFF1A1A1A),
+            dropdownColor: cx.dropdownBg,
             decoration: const InputDecoration(
               labelText: 'Crypto System',
               isDense: true,
               border: OutlineInputBorder(),
             ),
-            style: const TextStyle(color: AppColors.text, fontSize: 13),
+            style: TextStyle(color: cx.text, fontSize: 13),
             items: const [
               DropdownMenuItem(value: 0, child: Text('NONE')),
               DropdownMenuItem(value: 1, child: Text('KY-28')),
@@ -1201,7 +1296,7 @@ class _CryptoDialogState extends State<_CryptoDialog> {
           const SizedBox(height: 8),
           TextField(
             controller: _keyCtrl,
-            style: const TextStyle(color: AppColors.text, fontSize: 13),
+            style: TextStyle(color: cx.text, fontSize: 13),
             decoration: const InputDecoration(
               labelText: 'Crypto Key ID',
               isDense: true,
@@ -1220,8 +1315,7 @@ class _CryptoDialogState extends State<_CryptoDialog> {
             final keyId = int.tryParse(_keyCtrl.text) ?? 0;
             Navigator.pop(context, (_system, keyId));
           },
-          child: const Text('APPLY',
-              style: TextStyle(color: AppColors.primaryGreen)),
+          child: Text('APPLY', style: TextStyle(color: cx.primaryText)),
         ),
       ],
     );
@@ -1252,16 +1346,17 @@ class _KeysPill extends StatelessWidget {
         ? assigned.map((b) => b.fullKeyLabel).join('   ')
         : 'No keys assigned';
 
+    final cx = AppColorsX.of(context);
     return Tooltip(
       message: tooltipText,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        border: Border.all(color: AppColors.amber.withValues(alpha: 0.4)),
+        color: cx.surface,
+        border: Border.all(color: cx.amberText.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(4),
       ),
-      textStyle: const TextStyle(
+      textStyle: TextStyle(
         fontSize: 10,
-        color: AppColors.amber,
+        color: cx.amberText,
       ),
       preferBelow: false,
       child: SizedBox(
@@ -1272,11 +1367,11 @@ class _KeysPill extends StatelessWidget {
             minimumSize: Size.zero,
             side: BorderSide(
               color: hasKeys
-                  ? AppColors.amber.withValues(alpha: 0.5)
-                  : const Color(0xFF333333),
+                  ? cx.amberText.withValues(alpha: 0.5)
+                  : cx.borderSubtle,
             ),
             foregroundColor:
-                hasKeys ? AppColors.amber : AppColors.textMuted,
+                hasKeys ? cx.amberText : cx.textMuted,
           ),
           icon: const Icon(Icons.keyboard_outlined, size: 10),
           label: const Text('KEYS', style: TextStyle(fontSize: 10)),
@@ -1322,6 +1417,7 @@ class _AutoTxIndicator extends StatelessWidget {
       label = 'VOX';
     }
 
+    final cx = AppColorsX.of(context);
     return Container(
       width: 72,
       height: 72,
@@ -1329,9 +1425,9 @@ class _AutoTxIndicator extends StatelessWidget {
         shape: BoxShape.circle,
         color: txActive
             ? activeColor.withValues(alpha: 0.15)
-            : const Color(0xFF1A1A1A),
+            : cx.unselectedBg,
         border: Border.all(
-          color: txActive ? activeColor : const Color(0xFF444444),
+          color: txActive ? activeColor : cx.borderMedium,
           width: 2,
         ),
       ),
@@ -1340,13 +1436,13 @@ class _AutoTxIndicator extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon,
-                color: txActive ? activeColor : AppColors.textMuted, size: 26),
+                color: txActive ? activeColor : cx.textMuted, size: 26),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: txActive ? activeColor : AppColors.textMuted,
+                color: txActive ? activeColor : cx.textMuted,
               ),
             ),
           ],
@@ -1379,6 +1475,7 @@ class _LabelledMeter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     Widget meter = LevelMeter(
       levelStream: levelStream,
       width: 12,
@@ -1394,11 +1491,11 @@ class _LabelledMeter extends StatelessWidget {
         message: tooltipMessage!,
         preferBelow: false,
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
-          border: Border.all(color: const Color(0xFF444444)),
+          color: cx.surface,
+          border: Border.all(color: cx.borderMedium),
           borderRadius: BorderRadius.circular(4),
         ),
-        textStyle: const TextStyle(fontSize: 10, color: AppColors.textMuted),
+        textStyle: TextStyle(fontSize: 10, color: cx.textMuted),
         child: meter,
       );
     }
@@ -1431,6 +1528,7 @@ class _MiniToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     final color = activeColor ?? AppColors.amber;
     Widget btn = GestureDetector(
       onTap: onTap,
@@ -1439,9 +1537,9 @@ class _MiniToggleButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
           decoration: BoxDecoration(
-            color: active ? color.withValues(alpha: 0.15) : const Color(0xFF1A1A1A),
+            color: active ? color.withValues(alpha: 0.15) : cx.unselectedBg,
             border: Border.all(
-              color: active ? color.withValues(alpha: 0.7) : const Color(0xFF333333),
+              color: active ? color.withValues(alpha: 0.7) : cx.borderSubtle,
             ),
             borderRadius: BorderRadius.circular(3),
           ),
@@ -1450,7 +1548,7 @@ class _MiniToggleButton extends StatelessWidget {
             style: TextStyle(
               fontSize: 9,
               fontWeight: active ? FontWeight.bold : FontWeight.normal,
-              color: active ? color : AppColors.textMuted,
+              color: active ? color : cx.textMuted,
               letterSpacing: 0.5,
             ),
           ),
@@ -1480,7 +1578,7 @@ class _DuplicateWarningChip extends StatelessWidget {
           'DIS cannot distinguish between them — PDUs may be filtered or ignored.',
       preferBelow: false,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A0A00),
+        color: AppColorsX.of(context).surface,
         border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(4),
       ),
@@ -1539,17 +1637,14 @@ class _EntityPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     final Color color;
-    final Color bg;
     if (isDuplicate) {
       color = Colors.orange;
-      bg = const Color(0xFF1A0A00);
     } else if (_isSet) {
-      color = AppColors.amber;
-      bg = const Color(0xFF0A0A1A);
+      color = cx.amberText;
     } else {
-      color = AppColors.textMuted;
-      bg = const Color(0xFF0A0A1A);
+      color = cx.textMuted;
     }
 
     return Tooltip(
@@ -1562,13 +1657,13 @@ class _EntityPill extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              color: bg,
+              color: cx.pillBg,
               border: Border.all(
                 color: isDuplicate
                     ? Colors.orange.withValues(alpha: 0.5)
                     : (_isSet
-                        ? AppColors.amber.withValues(alpha: 0.5)
-                        : const Color(0xFF333333)),
+                        ? cx.amberText.withValues(alpha: 0.5)
+                        : cx.borderSubtle),
               ),
               borderRadius: BorderRadius.circular(3),
             ),
@@ -1644,12 +1739,12 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return AlertDialog(
-      backgroundColor: const Color(0xFF0D0D0D),
-      title: const Text(
+      title: Text(
         'HOST ENTITY',
         style: TextStyle(
-          color: AppColors.amber,
+          color: cx.amberText,
           fontSize: 13,
           letterSpacing: 2,
           fontWeight: FontWeight.bold,
@@ -1661,9 +1756,9 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'ACTIVE DIS ENTITIES',
-              style: TextStyle(fontSize: 9, color: AppColors.textMuted, letterSpacing: 1),
+              style: TextStyle(fontSize: 9, color: cx.textMuted, letterSpacing: 1),
             ),
             const SizedBox(height: 4),
             Row(
@@ -1679,11 +1774,11 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
             ),
             const SizedBox(height: 6),
             if (widget.seenEntities.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(
                   'No entities detected on network',
-                  style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 11, color: cx.textMuted),
                 ),
               )
             else
@@ -1713,7 +1808,7 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
                             ),
                             const SizedBox(width: 6),
                             if (isSelected)
-                              const Icon(Icons.check, size: 12, color: AppColors.amber)
+                              Icon(Icons.check, size: 12, color: cx.amberText)
                             else
                               const SizedBox(width: 12),
                             const SizedBox(width: 4),
@@ -1722,7 +1817,7 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
                                 e.displayLabel.isNotEmpty ? e.displayLabel : '(unknown)',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: isSelected ? AppColors.amber : affColor,
+                                  color: isSelected ? cx.amberText : affColor,
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                 ),
                               ),
@@ -1741,7 +1836,7 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
                   },
                 ),
               ),
-            const Divider(color: Color(0xFF333333)),
+            Divider(color: cx.borderSubtle),
             InkWell(
               onTap: () => setState(() => _showManual = !_showManual),
               child: Padding(
@@ -1751,12 +1846,12 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
                     Icon(
                       _showManual ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
                       size: 14,
-                      color: AppColors.textMuted,
+                      color: cx.textMuted,
                     ),
                     const SizedBox(width: 4),
-                    const Text(
+                    Text(
                       'Enter manually',
-                      style: TextStyle(fontSize: 11, color: AppColors.textMuted),
+                      style: TextStyle(fontSize: 11, color: cx.textMuted),
                     ),
                   ],
                 ),
@@ -1834,7 +1929,7 @@ class _AffDot extends StatelessWidget {
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 3),
-        Text(label, style: const TextStyle(fontSize: 9, color: AppColors.textMuted)),
+        Text(label, style: TextStyle(fontSize: 9, color: AppColorsX.of(context).textMuted)),
       ],
     );
   }
@@ -1896,8 +1991,9 @@ class _RadioIdPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isDuplicate ? Colors.orange : AppColors.primaryGreen;
-    final bg = isDuplicate ? const Color(0xFF1A0A00) : const Color(0xFF0A1A0A);
+    final cx = AppColorsX.of(context);
+    final color = isDuplicate ? Colors.orange : cx.primaryText;
+    final bg = cx.pillBg;
     return Tooltip(
       message: 'Radio ID — click to edit',
       preferBelow: false,
@@ -1931,38 +2027,43 @@ class _RadioIdPill extends StatelessWidget {
     final result = await showDialog<int>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF0D0D0D),
-        title: const Text(
-          'RADIO ID',
-          style: TextStyle(
-            color: AppColors.primaryGreen,
-            fontSize: 13,
-            letterSpacing: 2,
-            fontWeight: FontWeight.bold,
+        title: Builder(
+          builder: (ctx) => Text(
+            'RADIO ID',
+            style: TextStyle(
+              color: AppColorsX.of(ctx).primaryText,
+              fontSize: 13,
+              letterSpacing: 2,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          style: const TextStyle(color: AppColors.text, fontSize: 13),
-          decoration: const InputDecoration(
-            labelText: 'Radio Number',
-            isDense: true,
-            border: OutlineInputBorder(),
+        content: Builder(
+          builder: (ctx) => TextField(
+            controller: ctrl,
+            autofocus: true,
+            style: TextStyle(color: AppColorsX.of(ctx).text, fontSize: 13),
+            decoration: const InputDecoration(
+              labelText: 'Radio Number',
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
+            keyboardType: TextInputType.number,
           ),
-          keyboardType: TextInputType.number,
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
               child: const Text('CANCEL')),
-          TextButton(
-            onPressed: () {
-              final n = int.tryParse(ctrl.text);
-              if (n != null && n > 0) Navigator.pop(context, n);
-            },
-            child: const Text('APPLY',
-                style: TextStyle(color: AppColors.primaryGreen)),
+          Builder(
+            builder: (ctx) => TextButton(
+              onPressed: () {
+                final n = int.tryParse(ctrl.text);
+                if (n != null && n > 0) Navigator.pop(context, n);
+              },
+              child: Text('APPLY',
+                  style: TextStyle(color: AppColorsX.of(ctx).primaryText)),
+            ),
           ),
         ],
       ),
@@ -1986,6 +2087,7 @@ class _ModPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return Tooltip(
       message: 'Modulation — click to edit',
       preferBelow: false,
@@ -1996,16 +2098,13 @@ class _ModPill extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
             decoration: BoxDecoration(
-              color: const Color(0xFF0A1A0A),
-              border: Border.all(color: AppColors.primaryGreen.withValues(alpha: 0.5)),
+              color: cx.pillBg,
+              border: Border.all(color: cx.primaryText.withValues(alpha: 0.5)),
               borderRadius: BorderRadius.circular(3),
             ),
             child: Text(
               radio.modulationType.displayName,
-              style: const TextStyle(
-                fontSize: 8,
-                color: AppColors.primaryGreen,
-              ),
+              style: TextStyle(fontSize: 8, color: cx.primaryText),
             ),
           ),
         ),
@@ -2018,48 +2117,47 @@ class _ModPill extends StatelessWidget {
     final result = await showDialog<RadioModulationType>(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          backgroundColor: const Color(0xFF0D0D0D),
-          title: const Text(
-            'MODULATION',
-            style: TextStyle(
-              color: AppColors.primaryGreen,
-              fontSize: 13,
-              letterSpacing: 2,
-              fontWeight: FontWeight.bold,
+        builder: (ctx, setState) {
+          final cxx = AppColorsX.of(ctx);
+          return AlertDialog(
+            title: Text(
+              'MODULATION',
+              style: TextStyle(
+                color: cxx.primaryText,
+                fontSize: 13,
+                letterSpacing: 2,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: RadioModulationType.values.map((m) {
-              return RadioListTile<RadioModulationType>(
-                value: m,
-                groupValue: selected,
-                activeColor: AppColors.primaryGreen,
-                title: Text(
-                  m.displayName,
-                  style: const TextStyle(
-                    color: AppColors.text,
-                    fontSize: 12,
-                      ),
-                ),
-                onChanged: (v) {
-                  if (v != null) setState(() => selected = v);
-                },
-              );
-            }).toList(),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('CANCEL')),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, selected),
-              child: const Text('APPLY',
-                  style: TextStyle(color: AppColors.primaryGreen)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: RadioModulationType.values.map((m) {
+                return RadioListTile<RadioModulationType>(
+                  value: m,
+                  groupValue: selected,
+                  activeColor: cxx.primaryText,
+                  title: Text(
+                    m.displayName,
+                    style: TextStyle(color: cxx.text, fontSize: 12),
+                  ),
+                  onChanged: (v) {
+                    if (v != null) setState(() => selected = v);
+                  },
+                );
+              }).toList(),
             ),
-          ],
-        ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('CANCEL')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, selected),
+                child: Text('APPLY',
+                    style: TextStyle(color: cxx.primaryText)),
+              ),
+            ],
+          );
+        },
       ),
     );
     if (result != null && context.mounted) {

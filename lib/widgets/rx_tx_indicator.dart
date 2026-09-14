@@ -87,7 +87,7 @@ class _LedIndicator extends StatelessWidget {
               height: 14,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: active ? activeColor : const Color(0xFF333333),
+                color: active ? activeColor : AppColorsX.of(context).inactiveLed,
                 boxShadow: active
                     ? [
                         BoxShadow(
@@ -104,9 +104,9 @@ class _LedIndicator extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 9,
-            color: AppColors.textMuted,
+            color: AppColorsX.of(context).textMuted,
             letterSpacing: 1,
           ),
         ),

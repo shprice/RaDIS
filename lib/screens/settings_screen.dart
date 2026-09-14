@@ -128,14 +128,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('SETTINGS'),
         actions: [
           TextButton(
             onPressed: _apply,
-            child: const Text('APPLY',
-                style: TextStyle(color: AppColors.primaryGreen)),
+            child: Text('APPLY', style: TextStyle(color: cx.primaryText)),
           ),
           TextButton(
             onPressed: () async {
@@ -144,8 +144,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _settings = context.read<SettingsProvider>().settings.copyWith();
               });
             },
-            child: const Text('RESET',
-                style: TextStyle(color: AppColors.textMuted)),
+            child: Text('RESET', style: TextStyle(color: cx.textMuted)),
           ),
         ],
       ),
@@ -160,16 +159,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     contentPadding: EdgeInsets.zero,
                     title: Text(
                       binding.displayLabel,
-                      style: const TextStyle(color: AppColors.text, fontSize: 13),
+                      style: TextStyle(color: cx.text, fontSize: 13),
                     ),
                     subtitle: Text(
                       binding.fullKeyLabel,
-                      style:
-                          const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                      style: TextStyle(color: cx.textMuted, fontSize: 11),
                     ),
                     trailing: IconButton(
-                      icon:
-                          const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
                       onPressed: () => _deleteBinding(binding.id),
                     ),
                   )),
@@ -177,11 +174,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ElevatedButton.icon(
                 onPressed: _capturingBinding ? null : _startCapturingBinding,
                 icon: _capturingBinding
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 14,
                         height: 14,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: AppColors.amber),
+                            strokeWidth: 2, color: cx.amberText),
                       )
                     : const Icon(Icons.add, size: 16),
                 label: Text(_capturingBinding ? 'Press a key...' : 'ADD BINDING'),
@@ -228,15 +225,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ]),
             _section('INTERFACE', [
               SwitchListTile(
-                title: const Text('Dark Mode',
-                    style: TextStyle(color: AppColors.text)),
+                title: Text('Dark Mode', style: TextStyle(color: cx.text)),
                 value: _settings.darkMode,
                 activeColor: AppColors.primaryGreen,
                 onChanged: (v) => _update(_settings.copyWith(darkMode: v)),
               ),
               SwitchListTile(
-                title: const Text('Show Level Meters',
-                    style: TextStyle(color: AppColors.text)),
+                title: Text('Show Level Meters', style: TextStyle(color: cx.text)),
                 value: _settings.showLevelMeters,
                 activeColor: AppColors.primaryGreen,
                 onChanged: (v) =>
@@ -255,6 +250,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _section(String title, List<Widget> children) {
+    final cx = AppColorsX.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -262,10 +258,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.only(top: 20, bottom: 8),
           child: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               letterSpacing: 3,
-              color: AppColors.textMuted,
+              color: cx.textMuted,
             ),
           ),
         ),
@@ -290,17 +286,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     List<TextInputFormatter>? inputFormatters,
     required FormFieldSetter<String> onSave,
   }) {
+    final cx = AppColorsX.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+              style: TextStyle(fontSize: 10, color: cx.textMuted)),
           const SizedBox(height: 4),
           TextFormField(
             initialValue: initialValue,
-            style: const TextStyle(color: AppColors.text, fontSize: 13),
+            style: TextStyle(color: cx.text, fontSize: 13),
             decoration: InputDecoration(
               hintText: hint,
               isDense: true,
@@ -323,18 +320,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required List<DropdownMenuItem<T>> items,
     required ValueChanged<T?> onChanged,
   }) {
+    final cx = AppColorsX.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
-              style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
+              style: TextStyle(fontSize: 10, color: cx.textMuted)),
           const SizedBox(height: 4),
           DropdownButtonFormField<T>(
             value: value,
-            dropdownColor: AppColors.surface,
-            style: const TextStyle(color: AppColors.text, fontSize: 13),
+            dropdownColor: cx.dropdownBg,
+            style: TextStyle(color: cx.text, fontSize: 13),
             decoration: const InputDecoration(
               isDense: true,
               contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),

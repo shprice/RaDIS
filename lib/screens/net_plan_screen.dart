@@ -31,6 +31,7 @@ class NetPlanScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rp = context.watch<RadioProvider>();
+    final cx = AppColorsX.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -64,10 +65,10 @@ class NetPlanScreen extends StatelessWidget {
                 onDelete: () => rp.removeRadioChannel(e.value.id),
               )),
           if (rp.radioChannels.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Text('No radio channels',
-                  style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                  style: TextStyle(color: cx.textMuted, fontSize: 12)),
             ),
           const SizedBox(height: 16),
         ],
@@ -84,17 +85,18 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return Row(
       children: [
         Text(label,
-            style: const TextStyle(
-                fontSize: 11, letterSpacing: 3, color: AppColors.textMuted)),
+            style: TextStyle(
+                fontSize: 11, letterSpacing: 3, color: cx.textMuted)),
         const Spacer(),
         TextButton.icon(
           icon: const Icon(Icons.add, size: 16),
           label: const Text('ADD', style: TextStyle(fontSize: 11)),
           style: TextButton.styleFrom(
-            foregroundColor: AppColors.primaryGreen,
+            foregroundColor: cx.primaryText,
             padding: const EdgeInsets.symmetric(horizontal: 8),
           ),
           onPressed: onAdd,
@@ -123,6 +125,7 @@ class _ChannelTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return Card(
       margin: const EdgeInsets.only(bottom: 4),
       child: ExpansionTile(
@@ -134,33 +137,33 @@ class _ChannelTile extends StatelessWidget {
               height: 32,
               alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: const Color(0xFF1A2A1A),
+                color: cx.pillBg,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
                 '${index + 1}',
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 14,
-                    color: AppColors.primaryGreen,
+                    color: cx.primaryText,
                     fontWeight: FontWeight.bold),
               ),
             ),
             const SizedBox(width: 8),
             Text(channel.name,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.text)),
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: cx.text)),
             const SizedBox(width: 12),
             Text(
               '${(channel.frequency / 1e6).toStringAsFixed(3)} MHz',
-              style: const TextStyle(color: Color(0xFF39FF14), fontSize: 12),
+              style: TextStyle(color: cx.primaryText, fontSize: 12),
             ),
             const SizedBox(width: 8),
             Text(channel.modulationType.displayName,
-                style: const TextStyle(fontSize: 10, color: AppColors.amber)),
+                style: TextStyle(fontSize: 10, color: cx.amberText)),
           ],
         ),
         trailing: IconButton(
-          icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.textMuted),
+          icon: Icon(Icons.delete_outline, size: 16, color: cx.textMuted),
           onPressed: onDelete,
         ),
         children: [
@@ -200,17 +203,18 @@ class _ChannelEditorState extends State<_ChannelEditor> {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return Column(
       children: [
         Row(
           children: [
             Expanded(
-              child: _field('Name', _ch.name,
+              child: _field(context, 'Name', _ch.name,
                   (v) => _update(_ch.copyWith(name: v))),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _field('Frequency (Hz)', _ch.frequency.toStringAsFixed(0), (v) {
+              child: _field(context, 'Frequency (Hz)', _ch.frequency.toStringAsFixed(0), (v) {
                 final hz = double.tryParse(v);
                 if (hz != null) _update(_ch.copyWith(frequency: hz));
               }),
@@ -219,12 +223,12 @@ class _ChannelEditorState extends State<_ChannelEditor> {
             Expanded(
               child: DropdownButtonFormField<RadioModulationType>(
                 value: _ch.modulationType,
-                dropdownColor: AppColors.surface,
+                dropdownColor: cx.dropdownBg,
                 decoration: const InputDecoration(
                     labelText: 'Modulation',
                     isDense: true,
                     border: OutlineInputBorder()),
-                style: const TextStyle(color: AppColors.text, fontSize: 12),
+                style: TextStyle(color: cx.text, fontSize: 12),
                 items: RadioModulationType.values
                     .map((m) => DropdownMenuItem(value: m, child: Text(m.displayName)))
                     .toList(),
@@ -246,12 +250,12 @@ class _ChannelEditorState extends State<_ChannelEditor> {
             Expanded(
               child: DropdownButtonFormField<int>(
                 value: _ch.cryptoSystem,
-                dropdownColor: AppColors.surface,
+                dropdownColor: cx.dropdownBg,
                 decoration: const InputDecoration(
                     labelText: 'Crypto',
                     isDense: true,
                     border: OutlineInputBorder()),
-                style: const TextStyle(color: AppColors.text, fontSize: 12),
+                style: TextStyle(color: cx.text, fontSize: 12),
                 items: const [
                   DropdownMenuItem(value: 0, child: Text('NONE')),
                   DropdownMenuItem(value: 1, child: Text('KY-28')),
@@ -266,14 +270,14 @@ class _ChannelEditorState extends State<_ChannelEditor> {
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _field('Crypto Key ID', _ch.cryptoKeyId.toString(), (v) {
+              child: _field(context, 'Crypto Key ID', _ch.cryptoKeyId.toString(), (v) {
                 final k = int.tryParse(v);
                 if (k != null) _update(_ch.copyWith(cryptoKeyId: k));
               }),
             ),
             const SizedBox(width: 8),
             Expanded(
-              child: _field('Description', _ch.description ?? '', (v) {
+              child: _field(context, 'Description', _ch.description ?? '', (v) {
                 _update(_ch.copyWith(description: v.isEmpty ? null : v));
               }),
             ),
@@ -283,10 +287,11 @@ class _ChannelEditorState extends State<_ChannelEditor> {
     );
   }
 
-  Widget _field(String label, String value, ValueChanged<String> onChanged) {
+  Widget _field(BuildContext context, String label, String value, ValueChanged<String> onChanged) {
+    final cx = AppColorsX.of(context);
     return TextFormField(
       initialValue: value,
-      style: const TextStyle(color: AppColors.text, fontSize: 12),
+      style: TextStyle(color: cx.text, fontSize: 12),
       decoration: InputDecoration(
         labelText: label,
         isDense: true,
@@ -319,10 +324,12 @@ class _ColorPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
+    final isLight = Theme.of(context).brightness == Brightness.light;
     return Row(
       children: [
-        const Text('Colour',
-            style: TextStyle(fontSize: 11, color: AppColors.textMuted)),
+        Text('Colour',
+            style: TextStyle(fontSize: 11, color: cx.textMuted)),
         const SizedBox(width: 12),
         ..._options.entries.map((e) {
           final isSelected = e.key == selected;
@@ -336,7 +343,9 @@ class _ColorPicker extends StatelessWidget {
                 color: e.value,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: isSelected ? Colors.white : Colors.transparent,
+                  color: isSelected
+                      ? (isLight ? Colors.black45 : Colors.white)
+                      : Colors.transparent,
                   width: 2,
                 ),
                 boxShadow: isSelected

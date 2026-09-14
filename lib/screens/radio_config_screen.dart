@@ -136,7 +136,6 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
               label: 'Modulation Type',
               child: DropdownButtonFormField<RadioModulationType>(
                 value: _radio.modulationType,
-                dropdownColor: AppColors.surface,
                 style: _inputStyle,
                 decoration: _inputDec(''),
                 items: RadioModulationType.values
@@ -161,7 +160,6 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
               label: 'Crypto System',
               child: DropdownButtonFormField<int>(
                 value: _radio.cryptoSystem,
-                dropdownColor: AppColors.surface,
                 style: _inputStyle,
                 decoration: _inputDec(''),
                 items: const [
@@ -197,8 +195,9 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
             _Field(
               label: 'Input Device (Microphone)',
               child: DropdownButtonFormField<String?>(
-                value: _radio.inputDeviceId,
-                dropdownColor: AppColors.surface,
+                value: audioProvider.inputDevices.any((d) => d.id == _radio.inputDeviceId)
+                    ? _radio.inputDeviceId
+                    : null,
                 style: _inputStyle,
                 decoration: _inputDec(''),
                 items: [
@@ -214,8 +213,9 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
             _Field(
               label: 'Output Device (Speaker)',
               child: DropdownButtonFormField<String?>(
-                value: _radio.outputDeviceId,
-                dropdownColor: AppColors.surface,
+                value: audioProvider.outputDevices.any((d) => d.id == _radio.outputDeviceId)
+                    ? _radio.outputDeviceId
+                    : null,
                 style: _inputStyle,
                 decoration: _inputDec(''),
                 items: [
@@ -358,7 +358,6 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
                   label: 'Radio Channel',
                   child: DropdownButtonFormField<String?>(
                     value: safeId,
-                    dropdownColor: AppColors.surface,
                     style: _inputStyle,
                     decoration: _inputDec(''),
                     items: items,
@@ -389,7 +388,6 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
               label: 'DIS Protocol Version',
               child: DropdownButtonFormField<int>(
                 value: _radio.disProtocolVersion,
-                dropdownColor: AppColors.surface,
                 style: _inputStyle,
                 decoration: _inputDec(''),
                 items: const [
@@ -409,7 +407,6 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
                 value: _adapters.any((a) => a.address == _radio.disLocalAddress)
                     ? _radio.disLocalAddress
                     : '0.0.0.0',
-                dropdownColor: AppColors.surface,
                 style: _inputStyle,
                 decoration: _inputDec(''),
                 items: _adapters

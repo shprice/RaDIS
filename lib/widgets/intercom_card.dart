@@ -7,6 +7,7 @@ import '../providers/dis_provider.dart';
 import '../providers/radio_provider.dart';
 import '../providers/settings_provider.dart';
 import '../audio/audio_manager.dart';
+import '../providers/audio_provider.dart';
 import '../theme.dart';
 import 'level_meter.dart';
 import 'ptt_button.dart';
@@ -83,7 +84,7 @@ class IntercomCard extends StatelessWidget {
     return Row(
       children: [
         Icon(Icons.headset_mic,
-            color: AppColors.amber, size: 16),
+            color: AppColorsX.of(context).amberText, size: 16),
         const SizedBox(width: 6),
         Expanded(
           child: Column(
@@ -91,10 +92,10 @@ class IntercomCard extends StatelessWidget {
             children: [
               Text(
                 intercom.name.toUpperCase(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.amber,
+                  color: AppColorsX.of(context).amberText,
                   letterSpacing: 2,
                 ),
               ),
@@ -114,7 +115,7 @@ class IntercomCard extends StatelessWidget {
         const SizedBox(width: 4),
         IconButton(
           icon: const Icon(Icons.settings, size: 16),
-          color: AppColors.textMuted,
+          color: AppColorsX.of(context).textMuted,
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(),
           onPressed: () => Navigator.push(
@@ -171,7 +172,7 @@ class IntercomCard extends StatelessWidget {
       children: [
         _LabelledMeter(
           label: 'TX',
-          labelColor: txActive ? AppColors.amber : AppColors.textMuted,
+          labelColor: txActive ? AppColorsX.of(context).amberText : AppColorsX.of(context).textMuted,
           levelStream: AudioManager.instance.inputLevel(intercom.id),
           threshold: intercom.voxThreshold,
           tooltipMessage:
@@ -209,16 +210,22 @@ class IntercomCard extends StatelessWidget {
         // Audio output popup (volume + pan)
         _PopupControl(
           trigger: Tooltip(
-            message: 'Volume / Pan',
-            child: Icon(Icons.tune, size: 16, color: AppColors.textMuted),
+            message: 'Audio',
+            child: Builder(builder: (ctx) => Icon(Icons.tune, size: 16, color: AppColorsX.of(ctx).textMuted)),
           ),
           popupBuilder: (_) => _AudioOutputPopup(
             volume: intercom.outputVolume,
             pan: intercom.outputPan,
+            inputDeviceId: intercom.inputDeviceId,
+            outputDeviceId: intercom.outputDeviceId,
             onVolumeChanged: (v) =>
                 rp.updateIntercom(intercom.copyWith(outputVolume: v)),
             onPanChanged: (v) =>
                 rp.updateIntercom(intercom.copyWith(outputPan: v)),
+            onInputDeviceChanged: (v) =>
+                rp.updateIntercom(intercom.copyWith(inputDeviceId: v)),
+            onOutputDeviceChanged: (v) =>
+                rp.updateIntercom(intercom.copyWith(outputDeviceId: v)),
           ),
         ),
         const SizedBox(width: 6),
@@ -227,9 +234,9 @@ class IntercomCard extends StatelessWidget {
           onToggle: () => dis.toggleIntercomMute(intercom.id),
         ),
         const SizedBox(width: 10),
-        const SizedBox(
+        SizedBox(
           height: 16,
-          child: VerticalDivider(width: 1, color: Color(0xFF333333)),
+          child: VerticalDivider(width: 1, color: AppColorsX.of(context).borderSubtle),
         ),
         const SizedBox(width: 10),
         // Trigger mode selector
@@ -243,7 +250,7 @@ class IntercomCard extends StatelessWidget {
         ),
         // Keys pill — only in PTT/latched modes
         if (isPtt) ...[
-          const SizedBox(width: 8),
+          const Spacer(),
           _KeysPill(
             intercom: intercom,
             assigned: assigned,
@@ -294,11 +301,12 @@ class _IcIdPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     final borderColor = isDuplicate
         ? Colors.orange.withValues(alpha: 0.8)
-        : AppColors.primaryGreen.withValues(alpha: 0.5);
-    final bgColor = isDuplicate ? const Color(0xFF1A0A00) : const Color(0xFF0A1A0A);
-    final textColor = isDuplicate ? Colors.orange : AppColors.primaryGreen;
+        : cx.primaryText.withValues(alpha: 0.5);
+    final bgColor = cx.pillBg;
+    final textColor = isDuplicate ? Colors.orange : cx.primaryText;
 
     return Tooltip(
       message: 'IC ID / Source Channel — click to edit',
@@ -377,12 +385,12 @@ class _IcIdDialogState extends State<_IcIdDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return AlertDialog(
-      backgroundColor: const Color(0xFF0D0D0D),
-      title: const Text(
+      title: Text(
         'INTERCOM ID',
         style: TextStyle(
-          color: AppColors.primaryGreen,
+          color: cx.primaryText,
           fontSize: 13,
           letterSpacing: 2,
           fontWeight: FontWeight.bold,
@@ -393,7 +401,7 @@ class _IcIdDialogState extends State<_IcIdDialog> {
         children: [
           TextField(
             controller: _deviceCtrl,
-            style: const TextStyle(color: AppColors.text, fontSize: 13),
+            style: TextStyle(color: cx.text, fontSize: 13),
             decoration: const InputDecoration(
               labelText: 'Comms Device ID',
               isDense: true,
@@ -404,7 +412,7 @@ class _IcIdDialogState extends State<_IcIdDialog> {
           const SizedBox(height: 8),
           TextField(
             controller: _channelCtrl,
-            style: const TextStyle(color: AppColors.text, fontSize: 13),
+            style: TextStyle(color: cx.text, fontSize: 13),
             decoration: const InputDecoration(
               labelText: 'Source Channel ID',
               isDense: true,
@@ -426,8 +434,8 @@ class _IcIdDialogState extends State<_IcIdDialog> {
               Navigator.pop(context, (id, ch));
             }
           },
-          child: const Text('APPLY',
-              style: TextStyle(color: AppColors.primaryGreen)),
+          child: Text('APPLY',
+              style: TextStyle(color: cx.primaryText)),
         ),
       ],
     );
@@ -464,30 +472,35 @@ class _IntercomEntityPill extends StatelessWidget {
         onTap: () => _openPicker(context),
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(
-              color: isDuplicate ? const Color(0xFF1A0A00) : const Color(0xFF0A0A1A),
-              border: Border.all(
+          child: Builder(builder: (ctx) {
+            final cx = AppColorsX.of(ctx);
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
                 color: isDuplicate
-                    ? Colors.orange.withValues(alpha: 0.8)
-                    : (_isSet
-                        ? AppColors.amber.withValues(alpha: 0.5)
-                        : const Color(0xFF333333)),
+                    ? Colors.orange.withValues(alpha: 0.15)
+                    : (_isSet ? cx.pillBg : cx.unselectedBg),
+                border: Border.all(
+                  color: isDuplicate
+                      ? Colors.orange.withValues(alpha: 0.8)
+                      : (_isSet
+                          ? cx.amberText.withValues(alpha: 0.5)
+                          : cx.borderSubtle),
+                ),
+                borderRadius: BorderRadius.circular(3),
               ),
-              borderRadius: BorderRadius.circular(3),
-            ),
-            child: Text(
-              _label,
-              style: TextStyle(
-                fontSize: 9,
-                color: isDuplicate
-                    ? Colors.orange
-                    : (_isSet ? AppColors.amber : AppColors.textMuted),
-                letterSpacing: 0.5,
+              child: Text(
+                _label,
+                style: TextStyle(
+                  fontSize: 9,
+                  color: isDuplicate
+                      ? Colors.orange
+                      : (_isSet ? cx.amberText : cx.textMuted),
+                  letterSpacing: 0.5,
+                ),
               ),
-            ),
-          ),
+            );
+          }),
         ),
       ),
     );
@@ -625,7 +638,7 @@ class _PulsingMuteButtonState extends State<_PulsingMuteButton>
                   widget.muted ? Icons.volume_off : Icons.volume_up,
                   size: 16,
                   color:
-                      widget.muted ? Colors.red.shade400 : AppColors.textMuted,
+                      widget.muted ? Colors.red.shade400 : AppColorsX.of(context).textMuted,
                 ),
               );
             },
@@ -662,6 +675,7 @@ class _AutoTxIndicator extends StatelessWidget {
       label = 'VOX';
     }
 
+    final cx = AppColorsX.of(context);
     return Container(
       width: 72,
       height: 72,
@@ -669,9 +683,9 @@ class _AutoTxIndicator extends StatelessWidget {
         shape: BoxShape.circle,
         color: txActive
             ? activeColor.withValues(alpha: 0.15)
-            : const Color(0xFF1A1A1A),
+            : cx.unselectedBg,
         border: Border.all(
-          color: txActive ? activeColor : const Color(0xFF444444),
+          color: txActive ? activeColor : cx.borderMedium,
           width: 2,
         ),
       ),
@@ -680,13 +694,13 @@ class _AutoTxIndicator extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon,
-                color: txActive ? activeColor : AppColors.textMuted, size: 26),
+                color: txActive ? activeColor : cx.textMuted, size: 26),
             Text(
               label,
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.bold,
-                color: txActive ? activeColor : AppColors.textMuted,
+                color: txActive ? activeColor : cx.textMuted,
               ),
             ),
           ],
@@ -731,16 +745,16 @@ class _LabelledMeter extends StatelessWidget {
     );
 
     if (tooltipMessage != null) {
+      final cx = AppColorsX.of(context);
       meter = Tooltip(
         message: tooltipMessage!,
         preferBelow: false,
         decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
-          border: Border.all(color: const Color(0xFF444444)),
+          color: cx.surface,
+          border: Border.all(color: cx.borderMedium),
           borderRadius: BorderRadius.circular(4),
         ),
-        textStyle:
-            const TextStyle(fontSize: 10, color: AppColors.textMuted),
+        textStyle: TextStyle(fontSize: 10, color: cx.textMuted),
         child: meter,
       );
     }
@@ -795,12 +809,12 @@ class _PopupControlState extends State<_PopupControl> {
               followerAnchor: Alignment.bottomCenter,
               offset: const Offset(0, -4),
               child: Material(
-                color: const Color(0xFF1A1A1A),
+                color: AppColorsX.of(ctx).surface,
                 elevation: 8,
                 borderRadius: BorderRadius.circular(6),
                 child: Container(
                   decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFF333333)),
+                    border: Border.all(color: AppColorsX.of(ctx).borderSubtle),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: widget.popupBuilder(ctx),
@@ -822,20 +836,28 @@ class _PopupControlState extends State<_PopupControl> {
 }
 
 // ---------------------------------------------------------------------------
-// Audio output popup (volume + pan sliders)
+// Audio output popup (volume + pan sliders + device selection)
 // ---------------------------------------------------------------------------
 
 class _AudioOutputPopup extends StatefulWidget {
   final double volume;
   final double pan;
+  final String? inputDeviceId;
+  final String? outputDeviceId;
   final ValueChanged<double> onVolumeChanged;
   final ValueChanged<double> onPanChanged;
+  final ValueChanged<String?> onInputDeviceChanged;
+  final ValueChanged<String?> onOutputDeviceChanged;
 
   const _AudioOutputPopup({
     required this.volume,
     required this.pan,
+    required this.inputDeviceId,
+    required this.outputDeviceId,
     required this.onVolumeChanged,
     required this.onPanChanged,
+    required this.onInputDeviceChanged,
+    required this.onOutputDeviceChanged,
   });
 
   @override
@@ -861,33 +883,121 @@ class _AudioOutputPopupState extends State<_AudioOutputPopup> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _sliderRow(
-            label: 'VOL ${(_volume * 100).round()}%',
-            value: _volume,
-            min: 0,
-            max: 1,
-            onChanged: (v) {
-              setState(() => _volume = v);
-              widget.onVolumeChanged(v);
-            },
+    final cx = AppColorsX.of(context);
+    return Consumer<AudioProvider>(
+      builder: (context, audio, _) {
+        final safeIn = audio.inputDevices.any((d) => d.id == widget.inputDeviceId)
+            ? widget.inputDeviceId
+            : null;
+        final safeOut = audio.outputDevices.any((d) => d.id == widget.outputDeviceId)
+            ? widget.outputDeviceId
+            : null;
+
+        return SizedBox(
+          width: 220,
+          child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _deviceRow(
+                label: 'IN',
+                value: safeIn,
+                items: [
+                  DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Default',
+                        style: TextStyle(fontSize: 10, color: cx.textMuted)),
+                  ),
+                  ...audio.inputDevices.map((d) => DropdownMenuItem<String?>(
+                        value: d.id,
+                        child: Text(d.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10, color: cx.text)),
+                      )),
+                ],
+                onChanged: widget.onInputDeviceChanged,
+                cx: cx,
+              ),
+              const SizedBox(height: 2),
+              _deviceRow(
+                label: 'OUT',
+                value: safeOut,
+                items: [
+                  DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Default',
+                        style: TextStyle(fontSize: 10, color: cx.textMuted)),
+                  ),
+                  ...audio.outputDevices.map((d) => DropdownMenuItem<String?>(
+                        value: d.id,
+                        child: Text(d.name,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10, color: cx.text)),
+                      )),
+                ],
+                onChanged: widget.onOutputDeviceChanged,
+                cx: cx,
+              ),
+              Divider(height: 10, color: cx.borderSubtle),
+              _sliderRow(
+                label: 'VOL ${(_volume * 100).round()}%',
+                value: _volume,
+                min: 0,
+                max: 1,
+                onChanged: (v) {
+                  setState(() => _volume = v);
+                  widget.onVolumeChanged(v);
+                },
+              ),
+              _sliderRow(
+                label: 'PAN $_panLabel',
+                value: _pan,
+                min: -1,
+                max: 1,
+                onChanged: (v) {
+                  setState(() => _pan = v);
+                  widget.onPanChanged(v);
+                },
+              ),
+            ],
           ),
-          _sliderRow(
-            label: 'PAN $_panLabel',
-            value: _pan,
-            min: -1,
-            max: 1,
-            onChanged: (v) {
-              setState(() => _pan = v);
-              widget.onPanChanged(v);
-            },
           ),
-        ],
-      ),
+        );
+      },
+    );
+  }
+
+  Widget _deviceRow({
+    required String label,
+    required String? value,
+    required List<DropdownMenuItem<String?>> items,
+    required ValueChanged<String?> onChanged,
+    required AppColorsX cx,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: 28,
+          child: Text(label, style: TextStyle(fontSize: 9, color: cx.textMuted)),
+        ),
+        SizedBox(
+          width: 152,
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String?>(
+              value: value,
+              isDense: true,
+              isExpanded: true,
+              style: TextStyle(fontSize: 10, color: cx.text),
+              dropdownColor: cx.dropdownBg,
+              items: items,
+              onChanged: onChanged,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -903,23 +1013,21 @@ class _AudioOutputPopupState extends State<_AudioOutputPopup> {
       children: [
         SizedBox(
           width: 56,
-          child: Text(label,
-              style:
-                  const TextStyle(fontSize: 9, color: AppColors.textMuted)),
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 9, color: AppColorsX.of(context).textMuted),
+          ),
         ),
         SizedBox(
-          width: 120,
+          width: 124,
           height: 28,
           child: SliderTheme(
             data: SliderTheme.of(context).copyWith(
               trackHeight: 2,
-              thumbShape:
-                  const RoundSliderThumbShape(enabledThumbRadius: 5),
-              overlayShape:
-                  const RoundSliderOverlayShape(overlayRadius: 10),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
             ),
-            child: Slider(
-                value: value, min: min, max: max, onChanged: onChanged),
+            child: Slider(value: value, min: min, max: max, onChanged: onChanged),
           ),
         ),
       ],
@@ -950,16 +1058,17 @@ class _KeysPill extends StatelessWidget {
     final tooltipText =
         hasKeys ? assigned.map((b) => b.fullKeyLabel).join('   ') : 'No keys assigned';
 
+    final cx = AppColorsX.of(context);
     return Tooltip(
       message: tooltipText,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A1A),
-        border: Border.all(color: AppColors.amber.withValues(alpha: 0.4)),
+        color: cx.surface,
+        border: Border.all(color: cx.amberText.withValues(alpha: 0.4)),
         borderRadius: BorderRadius.circular(4),
       ),
-      textStyle: const TextStyle(
+      textStyle: TextStyle(
         fontSize: 10,
-        color: AppColors.amber,
+        color: cx.amberText,
       ),
       preferBelow: false,
       child: SizedBox(
@@ -970,10 +1079,10 @@ class _KeysPill extends StatelessWidget {
             minimumSize: Size.zero,
             side: BorderSide(
               color: hasKeys
-                  ? AppColors.amber.withValues(alpha: 0.5)
-                  : const Color(0xFF333333),
+                  ? cx.amberText.withValues(alpha: 0.5)
+                  : cx.borderSubtle,
             ),
-            foregroundColor: hasKeys ? AppColors.amber : AppColors.textMuted,
+            foregroundColor: hasKeys ? cx.amberText : cx.textMuted,
           ),
           icon: const Icon(Icons.keyboard_outlined, size: 10),
           label: const Text('KEYS', style: TextStyle(fontSize: 10)),
@@ -1043,12 +1152,12 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return AlertDialog(
-      backgroundColor: const Color(0xFF0D0D0D),
-      title: const Text(
+      title: Text(
         'HOST ENTITY',
         style: TextStyle(
-          color: AppColors.amber,
+          color: cx.amberText,
           fontSize: 13,
           letterSpacing: 2,
           fontWeight: FontWeight.bold,
@@ -1060,10 +1169,9 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'ACTIVE DIS ENTITIES',
-              style: TextStyle(
-                  fontSize: 9, color: AppColors.textMuted, letterSpacing: 1),
+              style: TextStyle(fontSize: 9, color: cx.textMuted, letterSpacing: 1),
             ),
             const SizedBox(height: 4),
             Row(
@@ -1079,12 +1187,11 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
             ),
             const SizedBox(height: 6),
             if (widget.seenEntities.isEmpty)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Text(
                   'No entities detected on network',
-                  style:
-                      TextStyle(fontSize: 11, color: AppColors.textMuted),
+                  style: TextStyle(fontSize: 11, color: cx.textMuted),
                 ),
               )
             else
@@ -1114,8 +1221,8 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
                             ),
                             const SizedBox(width: 6),
                             if (isSelected)
-                              const Icon(Icons.check,
-                                  size: 12, color: AppColors.amber)
+                              Icon(Icons.check,
+                                  size: 12, color: cx.amberText)
                             else
                               const SizedBox(width: 12),
                             const SizedBox(width: 4),
@@ -1127,7 +1234,7 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: isSelected
-                                      ? AppColors.amber
+                                      ? cx.amberText
                                       : affColor,
                                   fontWeight: isSelected
                                       ? FontWeight.bold
@@ -1149,7 +1256,7 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
                   },
                 ),
               ),
-            const Divider(color: Color(0xFF333333)),
+            Divider(color: cx.borderSubtle),
             InkWell(
               onTap: () => setState(() => _showManual = !_showManual),
               child: Padding(
@@ -1161,13 +1268,12 @@ class _EntityPickerDialogState extends State<_EntityPickerDialog> {
                           ? Icons.keyboard_arrow_up
                           : Icons.keyboard_arrow_down,
                       size: 14,
-                      color: AppColors.textMuted,
+                      color: cx.textMuted,
                     ),
                     const SizedBox(width: 4),
-                    const Text(
+                    Text(
                       'Enter manually',
-                      style: TextStyle(
-                          fontSize: 11, color: AppColors.textMuted),
+                      style: TextStyle(fontSize: 11, color: cx.textMuted),
                     ),
                   ],
                 ),
@@ -1246,8 +1352,7 @@ class _AffDot extends StatelessWidget {
         ),
         const SizedBox(width: 3),
         Text(label,
-            style:
-                const TextStyle(fontSize: 9, color: AppColors.textMuted)),
+            style: TextStyle(fontSize: 9, color: AppColorsX.of(context).textMuted)),
       ],
     );
   }

@@ -10,6 +10,7 @@ class AudioDevicesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ap = context.watch<AudioProvider>();
+    final cx = AppColorsX.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -32,7 +33,7 @@ class AudioDevicesScreen extends StatelessWidget {
                     title: 'INPUT DEVICES',
                     icon: Icons.mic,
                     devices: ap.inputDevices,
-                    color: AppColors.primaryGreen,
+                    color: cx.primaryText,
                   ),
                 ),
                 const VerticalDivider(width: 1),
@@ -41,7 +42,7 @@ class AudioDevicesScreen extends StatelessWidget {
                     title: 'OUTPUT DEVICES',
                     icon: Icons.speaker,
                     devices: ap.outputDevices,
-                    color: AppColors.amber,
+                    color: cx.amberText,
                   ),
                 ),
               ],
@@ -56,23 +57,24 @@ class _ErrorPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.warning_amber, color: AppColors.amber, size: 48),
+            Icon(Icons.warning_amber, color: cx.amberText, size: 48),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Audio system unavailable',
               style: TextStyle(
-                  color: AppColors.text, fontSize: 16, fontWeight: FontWeight.bold),
+                  color: cx.text, fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             Text(
               error,
-              style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+              style: TextStyle(color: cx.textMuted, fontSize: 12),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
@@ -102,6 +104,7 @@ class _DeviceList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -122,8 +125,7 @@ class _DeviceList extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 '(${devices.length})',
-                style:
-                    const TextStyle(fontSize: 10, color: AppColors.textMuted),
+                style: TextStyle(fontSize: 10, color: cx.textMuted),
               ),
             ],
           ),
@@ -131,9 +133,9 @@ class _DeviceList extends StatelessWidget {
         const Divider(height: 1),
         Expanded(
           child: devices.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text('No devices found',
-                      style: TextStyle(color: AppColors.textMuted)))
+                      style: TextStyle(color: cx.textMuted)))
               : ListView.builder(
                   itemCount: devices.length,
                   itemBuilder: (context, i) => _DeviceTile(device: devices[i]),
@@ -151,6 +153,7 @@ class _DeviceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Padding(
@@ -160,8 +163,8 @@ class _DeviceTile extends StatelessWidget {
           children: [
             Text(
               device.name,
-              style: const TextStyle(
-                color: AppColors.text,
+              style: TextStyle(
+                color: cx.text,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
               ),
@@ -194,18 +197,19 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cx = AppColorsX.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFF111111),
-        border: Border.all(color: const Color(0xFF2E2E2E)),
+        color: cx.pillBg,
+        border: Border.all(color: cx.borderSubtle),
         borderRadius: BorderRadius.circular(3),
       ),
       child: Text(
         label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 9,
-          color: AppColors.textMuted,
+          color: cx.textMuted,
         ),
       ),
     );

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
+import '../theme.dart';
 
 enum FreqUnit { hz, khz, mhz, ghz }
 
@@ -125,17 +126,22 @@ class _FrequencyDisplayState extends State<FrequencyDisplay> {
               ),
               if (_interactive) ...[
                 SizedBox(width: widget.compact ? 4 : 8),
-                GestureDetector(
-                  onTap: _openKeypad,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: _kGreenVeryDim),
-                      borderRadius: BorderRadius.circular(3),
+                Builder(builder: (ctx) {
+                  final iconColor = Theme.of(ctx).brightness == Brightness.light
+                      ? const Color(0xFF4CAF50)
+                      : _kGreenVeryDim;
+                  return GestureDetector(
+                    onTap: _openKeypad,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: iconColor),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Icon(Icons.dialpad, size: 10, color: iconColor),
                     ),
-                    child: const Icon(Icons.dialpad, size: 10, color: _kGreenVeryDim),
-                  ),
-                ),
+                  );
+                }),
               ],
             ],
           ),
@@ -146,12 +152,15 @@ class _FrequencyDisplayState extends State<FrequencyDisplay> {
 
   Widget _buildDisplay() {
     final isCompact = widget.compact;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final displayBg = isLight ? const Color(0xFF152515) : _kBg;
+    final displayBorder = isLight ? const Color(0xFF2A4A2A) : _kBorder;
     Widget box = Container(
       padding: EdgeInsets.symmetric(
           horizontal: isCompact ? 6 : 12, vertical: isCompact ? 3 : 6),
       decoration: BoxDecoration(
-        color: _kBg,
-        border: Border.all(color: _kBorder, width: 1.5),
+        color: displayBg,
+        border: Border.all(color: displayBorder, width: 1.5),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
@@ -234,14 +243,17 @@ class _StepBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final bg = isLight ? const Color(0xFF152515) : _kBg;
+    final border = isLight ? const Color(0xFF2A4A2A) : _kBorder;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 22,
         height: 22,
         decoration: BoxDecoration(
-          color: _kBg,
-          border: Border.all(color: _kBorder),
+          color: bg,
+          border: Border.all(color: border),
           borderRadius: BorderRadius.circular(3),
         ),
         child: Icon(icon, size: 16, color: _kGreen),
@@ -259,19 +271,25 @@ class _UnitPills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final cx = AppColorsX.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: FreqUnit.values.map((unit) {
         final active = unit == selected;
+        final inactiveBorder = isLight ? const Color(0xFF4CAF50) : _kGreenVeryDim;
+        final inactiveText = isLight ? const Color(0xFF388E3C) : _kGreenVeryDim;
         return GestureDetector(
           onTap: () => onSelected(unit),
           child: Container(
             margin: const EdgeInsets.only(right: 3),
             padding: EdgeInsets.symmetric(horizontal: compact ? 3 : 5, vertical: 1),
             decoration: BoxDecoration(
-              color: active ? const Color(0xFF0A1A0A) : Colors.transparent,
+              color: active
+                  ? (isLight ? cx.pillBg : const Color(0xFF0A1A0A))
+                  : Colors.transparent,
               border: Border.all(
-                color: active ? _kGreen : _kGreenVeryDim,
+                color: active ? _kGreen : inactiveBorder,
                 width: 1,
               ),
               borderRadius: BorderRadius.circular(3),
@@ -281,7 +299,7 @@ class _UnitPills extends StatelessWidget {
               style: TextStyle(
                 fontFamily: 'Courier New',
                 fontSize: 9,
-                color: active ? _kGreen : _kGreenVeryDim,
+                color: active ? _kGreen : inactiveText,
                 fontWeight: active ? FontWeight.bold : FontWeight.normal,
               ),
             ),
@@ -361,7 +379,6 @@ class _FrequencyKeypadDialogState extends State<_FrequencyKeypadDialog> {
     final valid = _parsedHz != null;
 
     return AlertDialog(
-      backgroundColor: const Color(0xFF0D0D0D),
       titlePadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
       title: const Text(
@@ -403,41 +420,47 @@ class _FrequencyKeypadDialogState extends State<_FrequencyKeypadDialog> {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: FreqUnit.values.map((unit) {
-                final active = _unit == unit;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                  child: GestureDetector(
-                    onTap: () => _setUnit(unit),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: active
-                            ? const Color(0xFF0A1A0A)
-                            : Colors.transparent,
-                        border: Border.all(
-                          color: active ? _kGreen : _kGreenVeryDim,
+            Builder(builder: (ctx) {
+              final isLight = Theme.of(ctx).brightness == Brightness.light;
+              final cxx = AppColorsX.of(ctx);
+              final inactiveBorder = isLight ? const Color(0xFF4CAF50) : _kGreenVeryDim;
+              final inactiveText = isLight ? const Color(0xFF388E3C) : _kGreenVeryDim;
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: FreqUnit.values.map((unit) {
+                  final active = _unit == unit;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 3),
+                    child: GestureDetector(
+                      onTap: () => _setUnit(unit),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? (isLight ? cxx.pillBg : const Color(0xFF0A1A0A))
+                              : Colors.transparent,
+                          border: Border.all(
+                            color: active ? _kGreen : inactiveBorder,
+                          ),
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        unit.label,
-                        style: TextStyle(
-                          fontFamily: 'Courier New',
-                          fontSize: 12,
-                          color: active ? _kGreen : _kGreenVeryDim,
-                          fontWeight:
-                              active ? FontWeight.bold : FontWeight.normal,
+                        child: Text(
+                          unit.label,
+                          style: TextStyle(
+                            fontFamily: 'Courier New',
+                            fontSize: 12,
+                            color: active ? _kGreen : inactiveText,
+                            fontWeight:
+                                active ? FontWeight.bold : FontWeight.normal,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              }).toList(),
-            ),
+                  );
+                }).toList(),
+              );
+            }),
             const SizedBox(height: 10),
             _buildNumpad(),
             const SizedBox(height: 4),
@@ -458,6 +481,10 @@ class _FrequencyKeypadDialogState extends State<_FrequencyKeypadDialog> {
   }
 
   Widget _buildNumpad() {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final buttonBg = isLight ? Colors.grey.shade100 : _kBg;
+    final buttonFg = isLight ? const Color(0xFF2E7D32) : _kGreen;
+    final buttonBorder = isLight ? const Color(0xFFBDBDBD) : _kGreenVeryDim;
     const rows = [
       ['7', '8', '9'],
       ['4', '5', '6'],
@@ -477,9 +504,9 @@ class _FrequencyKeypadDialogState extends State<_FrequencyKeypadDialog> {
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       padding: EdgeInsets.zero,
-                      side: const BorderSide(color: _kGreenVeryDim),
-                      foregroundColor: _kGreen,
-                      backgroundColor: _kBg,
+                      side: BorderSide(color: buttonBorder),
+                      foregroundColor: buttonFg,
+                      backgroundColor: buttonBg,
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(4)),
                     ),

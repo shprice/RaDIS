@@ -37,6 +37,10 @@ class _LevelMeterState extends State<LevelMeter> {
 
   @override
   Widget build(BuildContext context) {
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final bgColor = isLight ? const Color(0xFFF0EBE3) : const Color(0xFF1A1A1A);
+    final borderColor = isLight ? const Color(0xFFDDD8D0) : const Color(0xFF333333);
+
     return StreamBuilder<double>(
       stream: widget.levelStream,
       builder: (context, snapshot) {
@@ -44,8 +48,14 @@ class _LevelMeterState extends State<LevelMeter> {
         final painter = CustomPaint(
           size: Size(widget.width, widget.height),
           painter: _LevelMeterPainter(
-              _level, widget.horizontal, widget.threshold,
-              widget.barColorOverride, widget.mutedOverlay),
+            _level,
+            widget.horizontal,
+            widget.threshold,
+            widget.barColorOverride,
+            widget.mutedOverlay,
+            bgColor,
+            borderColor,
+          ),
         );
 
         if (widget.onThresholdChanged != null) {
@@ -75,14 +85,25 @@ class _LevelMeterPainter extends CustomPainter {
   final double? threshold;
   final Color? barColorOverride;
   final bool mutedOverlay;
+  final Color bgColor;
+  final Color borderColor;
 
-  _LevelMeterPainter(this.level, this.horizontal, this.threshold,
-      this.barColorOverride, this.mutedOverlay);
+  _LevelMeterPainter(
+    this.level,
+    this.horizontal,
+    this.threshold,
+    this.barColorOverride,
+    this.mutedOverlay,
+    this.bgColor,
+    this.borderColor,
+  );
 
   @override
   void paint(Canvas canvas, Size size) {
-    final bgPaint = Paint()..color = const Color(0xFF1A1A1A);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Paint()..color = bgColor,
+    );
 
     if (level > 0) {
       final segments = horizontal
@@ -100,18 +121,16 @@ class _LevelMeterPainter extends CustomPainter {
         barColor = const Color(0xFFFF1744);
       }
 
-      final paint = Paint()..color = barColor;
-
       if (horizontal) {
         canvas.drawRect(
           Rect.fromLTWH(0, 0, segments.toDouble(), size.height),
-          paint,
+          Paint()..color = barColor,
         );
       } else {
         final top = size.height - segments.toDouble();
         canvas.drawRect(
           Rect.fromLTWH(0, top, size.width, segments.toDouble()),
-          paint,
+          Paint()..color = barColor,
         );
       }
     }
@@ -127,23 +146,20 @@ class _LevelMeterPainter extends CustomPainter {
       } else {
         final y = size.height - threshold! * size.height;
         canvas.drawLine(Offset(0, y), Offset(size.width, y), threshPaint);
-        // Small tick marks to hint the line is draggable
         final tickPaint = Paint()
           ..color = const Color(0xFFFFB300)
           ..strokeWidth = 1.0;
         canvas.drawLine(Offset(0, y - 3), Offset(0, y + 3), tickPaint);
-        canvas.drawLine(
-            Offset(size.width, y - 3), Offset(size.width, y + 3), tickPaint);
+        canvas.drawLine(Offset(size.width, y - 3), Offset(size.width, y + 3), tickPaint);
       }
     }
 
-    final borderPaint = Paint()
-      ..color = const Color(0xFF333333)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
-      borderPaint,
+      Paint()
+        ..color = borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
     );
 
     if (mutedOverlay) {
@@ -159,5 +175,7 @@ class _LevelMeterPainter extends CustomPainter {
       old.level != level ||
       old.threshold != threshold ||
       old.barColorOverride != barColorOverride ||
-      old.mutedOverlay != mutedOverlay;
+      old.mutedOverlay != mutedOverlay ||
+      old.bgColor != bgColor ||
+      old.borderColor != borderColor;
 }
