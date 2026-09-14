@@ -17,6 +17,7 @@ import 'ptt_binding_picker.dart';
 import 'rx_tx_indicator.dart';
 import 'level_meter.dart';
 import 'trigger_mode_selector.dart';
+import 'network_mode_pill.dart';
 
 class RadioCard extends StatelessWidget {
   final RadioConfig radio;
@@ -157,6 +158,18 @@ class RadioCard extends StatelessWidget {
                 children: [
                   _RadioIdPill(radio: radio, radioProvider: rp, isDuplicate: isDuplicate),
                   _EntityPill(radio: radio, disProvider: disProvider, isDuplicate: isDuplicate),
+                  NetworkModePill(
+                    useMulticast: radio.disUseMulticast,
+                    multicastGroup: radio.disMulticastGroup,
+                    unicastAddress: radio.disUnicastAddress,
+                    onSave: (useMulticast, mg, ua) {
+                      rp.updateRadio(radio.copyWith(
+                        disUseMulticast: useMulticast,
+                        disMulticastGroup: mg,
+                        disUnicastAddress: ua,
+                      ));
+                    },
+                  ),
                   if (isDuplicate) const _DuplicateWarningChip(),
                 ],
               ),

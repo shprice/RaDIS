@@ -15,6 +15,7 @@ import 'ptt_binding_picker.dart';
 import 'rx_tx_indicator.dart';
 import 'trigger_mode_selector.dart';
 import '../screens/intercom_config_screen.dart';
+import 'network_mode_pill.dart';
 
 class IntercomCard extends StatelessWidget {
   final IntercomConfig intercom;
@@ -105,6 +106,18 @@ class IntercomCard extends StatelessWidget {
                 children: [
                   _IcIdPill(intercom: intercom, radioProvider: rp, isDuplicate: isDuplicate),
                   _IntercomEntityPill(intercom: intercom, disProvider: dis, isDuplicate: isDuplicate),
+                  NetworkModePill(
+                    useMulticast: intercom.disUseMulticast,
+                    multicastGroup: intercom.disMulticastGroup,
+                    unicastAddress: intercom.disUnicastAddress,
+                    onSave: (useMulticast, mg, ua) {
+                      rp.updateIntercom(intercom.copyWith(
+                        disUseMulticast: useMulticast,
+                        disMulticastGroup: mg,
+                        disUnicastAddress: ua,
+                      ));
+                    },
+                  ),
                   if (isDuplicate) const _DuplicateWarningChip(),
                 ],
               ),

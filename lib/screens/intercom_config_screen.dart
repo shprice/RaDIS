@@ -459,8 +459,15 @@ class _IntercomConfigScreenState extends State<IntercomConfigScreen> {
                       TextStyle(color: AppColors.textMuted, fontSize: 11)),
               value: _intercom.disUseMulticast,
               activeColor: AppColors.primaryGreen,
-              onChanged: (v) =>
-                  _update(_intercom.copyWith(disUseMulticast: v)),
+              onChanged: (v) => _update(_intercom.copyWith(
+                disUseMulticast: v,
+                disMulticastGroup: v
+                    ? DisConstants.defaultMulticastGroup
+                    : _intercom.disMulticastGroup,
+                disUnicastAddress: v
+                    ? _intercom.disUnicastAddress
+                    : DisConstants.defaultBroadcastAddress,
+              )),
             ),
             if (_intercom.disUseMulticast) ...[
               _Field(

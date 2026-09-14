@@ -441,7 +441,15 @@ class _RadioConfigScreenState extends State<RadioConfigScreen> {
                   style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
               value: _radio.disUseMulticast,
               activeColor: AppColors.primaryGreen,
-              onChanged: (v) => _update(_radio.copyWith(disUseMulticast: v)),
+              onChanged: (v) => _update(_radio.copyWith(
+                disUseMulticast: v,
+                disMulticastGroup: v
+                    ? DisConstants.defaultMulticastGroup
+                    : _radio.disMulticastGroup,
+                disUnicastAddress: v
+                    ? _radio.disUnicastAddress
+                    : DisConstants.defaultBroadcastAddress,
+              )),
             ),
             if (_radio.disUseMulticast) ...[
               _Field(
